@@ -155,7 +155,10 @@ export async function imagesToPDF(imageFiles: File[]): Promise<Uint8Array> {
  * Performs OCR on an image and returns the text.
  */
 export async function performOCR(imageFile: File, onProgress?: (progress: number) => void): Promise<string> {
+  // Use the local worker path instead of the CDN to comply with CSP and allow offline use
   const worker = await createWorker('eng', 1, {
+    workerPath: '/tesseract/worker.min.js',
+    corePath: '/tesseract/tesseract-core.wasm.js',
     logger: m => {
       if (m.status === 'recognizing text' && onProgress) {
         onProgress(m.progress);

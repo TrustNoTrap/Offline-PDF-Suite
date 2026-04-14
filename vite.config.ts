@@ -2,11 +2,27 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(), 
+      tailwindcss(),
+      viteStaticCopy({
+        targets: [
+          {
+            src: 'node_modules/tesseract.js/dist/worker.min.js',
+            dest: 'tesseract'
+          },
+          {
+            src: 'node_modules/tesseract.js-core/tesseract-core.wasm.js',
+            dest: 'tesseract'
+          }
+        ]
+      })
+    ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
