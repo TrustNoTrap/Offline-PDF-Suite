@@ -267,11 +267,11 @@ export default function App() {
               <span className="text-xl font-black tracking-tighter">PDFSuite</span>
             </div>
             
-            <div className="flex items-center space-x-8 text-sm font-bold text-muted-foreground">
-              <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
-              <a href="#" className="hover:text-primary transition-colors">Contact</a>
-            </div>
+            // <div className="flex items-center space-x-8 text-sm font-bold text-muted-foreground">
+            //   <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
+            //   <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+            //   <a href="#" className="hover:text-primary transition-colors">Contact</a>
+            // </div>
             
             <p className="text-sm font-medium text-muted-foreground">
               © {new Date().getFullYear()} PDFSuite. Built for privacy.
