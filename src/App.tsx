@@ -10,7 +10,7 @@ import { PDFMerge } from './components/PDFMerge';
 import { PDFSplit } from './components/PDFSplit';
 import { PDFReorder } from './components/PDFReorder';
 import { ImageToPDF } from './components/ImageToPDF';
-import { PDFOCR } from './components/PDFOCR';
+// import { PDFOCR } from './components/PDFOCR';
 import { PDFHistory } from './components/PDFHistory';
 import { ModeToggle } from './components/ModeToggle';
 import { 
@@ -25,7 +25,7 @@ import {
   Lock,
   Globe, 
   FileText,
-  Search,
+  // Search,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -69,7 +69,7 @@ export default function App() {
     { id: "split", label: "Split", icon: Scissors, component: PDFSplit, activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
     { id: "reorder", label: "Reorder", icon: MoveVertical, component: PDFReorder, activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
     { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
-    { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
+    // { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
     { id: "history", label: "History", icon: History, component: PDFHistory, activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
   ];
 

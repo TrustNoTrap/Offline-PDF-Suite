@@ -161,12 +161,17 @@ let tesseractWorkerPromise: Promise<any> | null = null;
 async function getTesseractWorker() {
   if (!tesseractWorkerPromise) {
     tesseractWorkerPromise = (async () => {
+      // In Tesseract.js 7.0.0 (as seen in node_modules), createWorker is an async 
+      // function that returns a pre-initialized worker.
+      // Signature: createWorker(langs, oem, options, config)
       const worker = await createWorker('eng', 1, {
         workerPath: '/tesseract/worker.min.js',
         corePath: '/tesseract/tesseract-core.wasm.js',
         langPath: '/tesseract/lang-data',
         workerBlobURL: false,
+        gzip: false, // We use .traineddata files directly
       });
+      
       return worker;
     })();
   }
@@ -174,31 +179,24 @@ async function getTesseractWorker() {
 }
 
 // Trigger initialization on module load to ensure "offline at its core"
-if (typeof window !== 'undefined') {
-  getTesseractWorker().catch(console.error);
-}
+// if (typeof window !== 'undefined') {
+//   getTesseractWorker().catch(console.error);
+// }
 
 /**
  * Performs OCR on an image and returns the text.
  */
 export async function performOCR(imageFile: File, onProgress?: (progress: number) => void): Promise<string> {
-  const worker = await getTesseractWorker();
-  
-  // Update logger for the current job
-  worker.setParameters({
-    // We can't easily swap the logger on an existing worker without re-creating it 
-    // in older versions, but Tesseract.js 4+ allows setting parameters.
-    // However, the logger is usually set at creation.
-    // For a singleton, we'll just use the progress callback if provided.
-  });
-
-  // Re-bind logger if needed (Tesseract.js allows this via worker.reinitialize or similar, 
-  // but for simplicity we'll just use the worker as is)
-  
   try {
+    const worker = await getTesseractWorker();
+    
+    // Tesseract.js v5+ doesn't easily allow per-job loggers on a singleton worker
+    // without re-creating it, but we can use the recognize options or just rely on the singleton.
+    
     const { data: { text } } = await worker.recognize(imageFile);
     return text;
   } catch (error) {
+    console.error('OCR Error:', error);
     throw new PDFError('OCR processing failed.', 'OCR_FAILED');
   }
 }
