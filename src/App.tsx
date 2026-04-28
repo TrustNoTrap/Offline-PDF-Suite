@@ -10,6 +10,7 @@ import { PDFMerge } from './components/PDFMerge';
 import { PDFSplit } from './components/PDFSplit';
 import { PDFReorder } from './components/PDFReorder';
 import { ImageToPDF } from './components/ImageToPDF';
+import { PDFFill } from './components/PDFFill';
 // import { PDFOCR } from './components/PDFOCR';
 import { PDFHistory } from './components/PDFHistory';
 import { ModeToggle } from './components/ModeToggle';
@@ -19,6 +20,7 @@ import {
   MoveVertical, 
   Image as ImageIcon, 
   ShieldCheck,
+  PenTool,
   Github,
   History,
   Zap,
@@ -68,7 +70,8 @@ export default function App() {
     { id: "merge", label: "Merge", icon: FileStack, component: PDFMerge, activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
     { id: "split", label: "Split", icon: Scissors, component: PDFSplit, activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
     { id: "reorder", label: "Reorder", icon: MoveVertical, component: PDFReorder, activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
-    { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
+    { id: "fill", label: "Fill & Sign", icon: PenTool, component: PDFFill, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
+    { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
     // { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
     { id: "history", label: "History", icon: History, component: PDFHistory, activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
   ];

@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { createWorker } from 'tesseract.js';
 
 // ============================================================================
@@ -198,6 +198,129 @@ export async function performOCR(imageFile: File, onProgress?: (progress: number
   } catch (error) {
     console.error('OCR Error:', error);
     throw new PDFError('OCR processing failed.', 'OCR_FAILED');
+  }
+}
+
+/**
+ * Fills a PDF with form field data and adds custom annotations (text, images/signatures).
+ */
+export async function fillPDF(
+  pdfFile: File, 
+  formFields: Record<string, string | boolean>,
+  customAnnotations: {
+    pageIndex: number;
+    type: 'text' | 'signature' | 'check' | 'cross' | 'dot';
+    x: number; // 0-1 relative to page width
+    y: number; // 0-1 relative to page height
+    content?: string;
+    imageUrl?: string;
+    width?: number; // 0-1 relative to page width
+    height?: number; // 0-1 relative to page height
+    color?: string; // Hex color
+  }[]
+): Promise<Uint8Array> {
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const form = pdfDoc.getForm();
+
+    // Helper to parse hex color to pdf-lib rgb
+    const hexToRgb = (hex: string) => {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+      return rgb(r, g, b);
+    };
+
+    // 1. Fill AcroForms
+    for (const [name, value] of Object.entries(formFields)) {
+      try {
+        const field = form.getField(name);
+        if (typeof value === 'string') {
+          if (field.constructor.name === 'PDFTextField') {
+            form.getTextField(name).setText(value);
+          } else if (field.constructor.name === 'PDFDropdown') {
+            form.getDropdown(name).select(value);
+          }
+        } else if (typeof value === 'boolean') {
+          if (field.constructor.name === 'PDFCheckBox') {
+            const cb = form.getCheckBox(name);
+            if (value) cb.check(); else cb.uncheck();
+          } else if (field.constructor.name === 'PDFRadioGroup') {
+            // Radio groups are more complex, but often the value string matches an option
+          }
+        }
+      } catch (err) {
+        console.warn(`Field ${name} could not be filled:`, err);
+      }
+    }
+
+    // 2. Add Custom Annotations (like Acrobat's "Fill & Sign")
+    for (const ann of customAnnotations) {
+      const page = pdfDoc.getPage(ann.pageIndex);
+      const { width, height } = page.getSize();
+
+      if (ann.type === 'text' && ann.content) {
+        // Map width (fraction or font-scale) to font size
+        // If width was used for scaling text in UI, it should be reflected here
+        const fontSize = ann.width ? ann.width * 100 : 12;
+        
+        page.drawText(ann.content, {
+          x: ann.x * width,
+          y: (1 - ann.y) * height, // PDF-lib Y is from bottom
+          size: fontSize,
+          color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+        });
+      } else if (ann.type === 'check') {
+        const size = (ann.width || 0.05) * width;
+        page.drawText('✓', {
+          x: ann.x * width,
+          y: (1 - ann.y) * height - size/2,
+          size: size,
+          color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+        });
+      } else if (ann.type === 'cross') {
+        const size = (ann.width || 0.05) * width;
+        page.drawText('✕', {
+          x: ann.x * width,
+          y: (1 - ann.y) * height - size/2,
+          size: size,
+          color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+        });
+      } else if (ann.type === 'dot') {
+        const size = (ann.width || 0.02) * width;
+        page.drawCircle({
+          x: ann.x * width,
+          y: (1 - ann.y) * height,
+          size: size / 2,
+          color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+        });
+      } else if (ann.type === 'signature' && ann.imageUrl) {
+        // Signatures are images (PNG/JPG)
+        const imageBytes = await (await fetch(ann.imageUrl)).arrayBuffer();
+        let image;
+        if (ann.imageUrl.includes('image/png') || ann.imageUrl.endsWith('.png')) {
+          image = await pdfDoc.embedPng(imageBytes);
+        } else {
+          image = await pdfDoc.embedJpg(imageBytes);
+        }
+
+        const imgWidth = (ann.width || 0.2) * width;
+        const imgHeight = (ann.height || (imgWidth / image.width) * image.height);
+
+        page.drawImage(image, {
+          x: ann.x * width,
+          y: (1 - ann.y) * height - imgHeight, // Adjustment for Y from bottom
+          width: imgWidth,
+          height: imgHeight,
+        });
+      }
+    }
+
+    return await pdfDoc.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to fill the PDF document.', 'FILL_FAILED');
   }
 }
 
