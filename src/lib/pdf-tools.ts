@@ -268,20 +268,28 @@ export async function fillPDF(
       if (ann.type === 'text' && ann.content) {
         // Map width (fraction or font-scale) to font size
         const fontSize = ann.width ? ann.width * 100 : 12;
+        const lines = ann.content.split('\n');
         
-        let textWidth = 0;
-        try {
-          textWidth = helveticaBoldFont.widthOfTextAtSize(ann.content, fontSize);
-        } catch {
-          textWidth = (ann.content.length * fontSize) * 0.5; // fallback approximation
-        }
+        const lineHeight = fontSize * 1.2;
+        const totalHeight = lines.length * lineHeight;
         
-        page.drawText(ann.content, {
-          x: centerX - textWidth / 2,
-          y: centerY - fontSize * 0.35, // Adjust baseline to center vertically
-          size: fontSize,
-          font: helveticaBoldFont,
-          color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+        lines.forEach((line, i) => {
+          let textWidth = 0;
+          try {
+            textWidth = helveticaBoldFont.widthOfTextAtSize(line, fontSize);
+          } catch {
+            textWidth = (line.length * fontSize) * 0.5; // fallback approximation
+          }
+          
+          const lineY = centerY + (totalHeight / 2) - (0.95 * fontSize) - (i * lineHeight);
+          
+          page.drawText(line, {
+            x: centerX - textWidth / 2,
+            y: lineY,
+            size: fontSize,
+            font: helveticaBoldFont,
+            color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
+          });
         });
       } else if (ann.type === 'check') {
         const size = (ann.width || 0.05) * width;

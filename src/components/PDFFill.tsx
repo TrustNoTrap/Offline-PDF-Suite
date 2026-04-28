@@ -842,20 +842,30 @@ function AnnotationObject({
           )}
           
           {ann.type === 'text' && (
-            <div className="relative group/text">
-              <input 
-                type="text"
+            <div className="relative group/text grid place-items-center">
+              <div 
+                className="col-start-1 row-start-1 invisible whitespace-pre-wrap px-2 py-1 text-sm font-bold min-w-[10px] text-center pointer-events-none"
+                style={{ 
+                  fontSize: ann.width ? `${ann.width * 100}px` : 'inherit',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {ann.content || ' '}
+                {ann.content?.endsWith('\n') ? <br /> : null}
+              </div>
+              <textarea 
                 autoFocus={isSelected}
                 value={ann.content}
                 onChange={(e) => onUpdateContent(e.target.value)}
                 onBlur={(e) => onCommitContent(e.target.value)}
-                className={`border rounded px-2 py-1 text-sm font-bold min-w-[100px] outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
+                className={`col-start-1 row-start-1 w-full h-full resize-none overflow-hidden border rounded px-2 py-1 text-sm font-bold text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
                 style={{ 
                   color: ann.color || '#000000',
                   borderColor: (ann.color || '#000000') + (isSelected ? '80' : '40'),
                   fontSize: ann.width ? `${ann.width * 100}px` : 'inherit',
-                  width: ann.width ? 'auto' : '100%',
-                }}
+                  fieldSizing: 'content',
+                } as any}
+                rows={1}
               />
             </div>
           )}
