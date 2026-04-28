@@ -173,7 +173,7 @@ export function PDFFill() {
       type: selectedTool as any,
       x,
       y,
-      content: selectedTool === 'text' ? 'Type here' : undefined,
+      content: selectedTool === 'text' ? '' : undefined,
       color: selectedColor,
       width: selectedTool === 'text' ? 0.03 : undefined, // Default font size scale
     };
@@ -822,7 +822,7 @@ function AnnotationObject({
                       const rect = containerRef.current.getBoundingClientRect();
                       const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
                       const multiplier = handle.pos.includes('right') ? 1 : -1;
-                      const delta = (info.delta.x / rect.width) * multiplier;
+                      const delta = (info.delta.x / rect.width) * multiplier * 0.5;
                       onUpdateSizeLive(Math.max(0.005, Math.min(0.8, currentSize + delta)));
                     }
                   }}
@@ -832,7 +832,7 @@ function AnnotationObject({
                       const rect = containerRef.current.getBoundingClientRect();
                       const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
                       const multiplier = handle.pos.includes('right') ? 1 : -1;
-                      const delta = (info.delta.x / rect.width) * multiplier;
+                      const delta = (info.delta.x / rect.width) * multiplier * 0.5;
                       onUpdateSize(Math.max(0.005, Math.min(0.8, currentSize + delta)));
                     }
                   }}
@@ -847,18 +847,19 @@ function AnnotationObject({
           {ann.type === 'text' && (
             <div className="relative group/text grid place-items-center">
               <div 
-                className="col-start-1 row-start-1 invisible whitespace-pre-wrap px-2 py-1 text-sm font-bold min-w-[10px] text-center pointer-events-none"
+                className="col-start-1 row-start-1 invisible whitespace-pre px-2 py-1 text-sm font-bold min-w-[10px] text-center pointer-events-none"
                 style={{ 
                   fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
                   fontFamily: 'inherit',
                 }}
               >
-                {ann.content || ' '}
+                {ann.content || 'Type here'}
                 {ann.content?.endsWith('\n') ? <br /> : null}
               </div>
               <textarea 
                 autoFocus={isSelected}
                 value={ann.content}
+                placeholder="Type here"
                 onChange={(e) => onUpdateContent(e.target.value)}
                 onBlur={(e) => onCommitContent(e.target.value)}
                 className={`col-start-1 row-start-1 w-full h-full resize-none overflow-hidden border rounded px-2 py-1 text-sm font-bold text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
@@ -947,10 +948,10 @@ function ContextualToolbar({ annotation, onUpdateColor, onUpdateFontSize, onDele
       
       {annotation.type === 'text' && (
         <div className="flex gap-1 pr-2 border-r">
-          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(0.02)} className="h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(0.005)} className="h-8 w-8">
             <span className="text-lg font-bold">A+</span>
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(-0.02)} className="h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(-0.005)} className="h-8 w-8">
             <span className="text-sm font-bold">A-</span>
           </Button>
         </div>
