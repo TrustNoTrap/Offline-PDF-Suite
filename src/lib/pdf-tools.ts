@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { createWorker } from 'tesseract.js';
 
 // ============================================================================
@@ -256,42 +256,56 @@ export async function fillPDF(
     }
 
     // 2. Add Custom Annotations (like Acrobat's "Fill & Sign")
+    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    
     for (const ann of customAnnotations) {
       const page = pdfDoc.getPage(ann.pageIndex);
       const { width, height } = page.getSize();
 
+      const centerX = ann.x * width;
+      const centerY = (1 - ann.y) * height;
+
       if (ann.type === 'text' && ann.content) {
         // Map width (fraction or font-scale) to font size
-        // If width was used for scaling text in UI, it should be reflected here
         const fontSize = ann.width ? ann.width * 100 : 12;
         
+        let textWidth = 0;
+        try {
+          textWidth = helveticaBoldFont.widthOfTextAtSize(ann.content, fontSize);
+        } catch {
+          textWidth = (ann.content.length * fontSize) * 0.5; // fallback approximation
+        }
+        
         page.drawText(ann.content, {
-          x: ann.x * width,
-          y: (1 - ann.y) * height, // PDF-lib Y is from bottom
+          x: centerX - textWidth / 2,
+          y: centerY - fontSize * 0.35, // Adjust baseline to center vertically
           size: fontSize,
+          font: helveticaBoldFont,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
       } else if (ann.type === 'check') {
         const size = (ann.width || 0.05) * width;
+        const textWidth = size * 0.6; // Approximate width for center
         page.drawText('✓', {
-          x: ann.x * width,
-          y: (1 - ann.y) * height - size/2,
+          x: centerX - textWidth / 2,
+          y: centerY - size * 0.35,
           size: size,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
       } else if (ann.type === 'cross') {
         const size = (ann.width || 0.05) * width;
+        const textWidth = size * 0.6;
         page.drawText('✕', {
-          x: ann.x * width,
-          y: (1 - ann.y) * height - size/2,
+          x: centerX - textWidth / 2,
+          y: centerY - size * 0.35,
           size: size,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
       } else if (ann.type === 'dot') {
         const size = (ann.width || 0.02) * width;
         page.drawCircle({
-          x: ann.x * width,
-          y: (1 - ann.y) * height,
+          x: centerX,
+          y: centerY,
           size: size / 2,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
@@ -309,8 +323,8 @@ export async function fillPDF(
         const imgHeight = (ann.height || (imgWidth / image.width) * image.height);
 
         page.drawImage(image, {
-          x: ann.x * width,
-          y: (1 - ann.y) * height - imgHeight, // Adjustment for Y from bottom
+          x: centerX - imgWidth / 2,
+          y: centerY - imgHeight / 2,
           width: imgWidth,
           height: imgHeight,
         });
