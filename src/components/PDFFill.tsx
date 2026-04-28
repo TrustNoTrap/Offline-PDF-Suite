@@ -47,6 +47,7 @@ interface CustomAnnotation {
   width?: number;
   height?: number;
   color?: string; // Hex color
+  fontWeight?: 'normal' | 'bold';
 }
 
 const COLORS = [
@@ -232,7 +233,8 @@ export function PDFFill() {
         imageUrl: a.imageUrl,
         width: a.width,
         height: a.height,
-        color: a.color
+        color: a.color,
+        fontWeight: a.fontWeight
       }));
 
       const resultBytes = await fillPDF(file, {}, processedAnnotations);
@@ -248,8 +250,8 @@ export function PDFFill() {
 
       downloadBlob(resultBytes, fileName, 'application/pdf');
       toast.success("PDF saved and downloaded!");
-    } catch (error) {
-      toast.error("Failed to save PDF changes.");
+    } catch (error: any) {
+      toast.error("Failed to save PDF changes: " + (error?.message || 'Unknown error'));
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -520,11 +522,31 @@ export function PDFFill() {
                     onUpdateColor={(color) => {
                       pushToHistory(annotations.map(a => a.id === selectedAnnotationId ? { ...a, color } : a));
                     }}
+                    onSetFontSize={(size) => {
+                      const newAnnotations = annotations.map(a => {
+                        if (a.id === selectedAnnotationId) {
+                          // Math maps size 18 to 0.03
+                          return { ...a, width: size / 600 };
+                        }
+                        return a;
+                      });
+                      pushToHistory(newAnnotations);
+                    }}
                     onUpdateFontSize={(delta) => {
                       const newAnnotations = annotations.map(a => {
                         if (a.id === selectedAnnotationId) {
                           const currentSize = a.width || 0.03;
                           return { ...a, width: Math.max(0.01, Math.min(0.5, currentSize + delta)) };
+                        }
+                        return a;
+                      });
+                      pushToHistory(newAnnotations);
+                    }}
+                    onToggleBold={() => {
+                      const newAnnotations = annotations.map(a => {
+                        if (a.id === selectedAnnotationId) {
+                          const currentWeight = a.fontWeight || 'bold';
+                          return { ...a, fontWeight: currentWeight === 'bold' ? 'normal' : 'bold' as 'normal' | 'bold' };
                         }
                         return a;
                       });
@@ -847,10 +869,11 @@ function AnnotationObject({
           {ann.type === 'text' && (
             <div className="relative group/text grid place-items-center">
               <div 
-                className="col-start-1 row-start-1 invisible whitespace-pre px-2 py-1 text-sm font-bold min-w-[10px] text-center pointer-events-none"
+                className="col-start-1 row-start-1 invisible whitespace-pre px-2 py-1 text-sm min-w-[10px] text-center pointer-events-none"
                 style={{ 
                   fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
                   fontFamily: 'inherit',
+                  fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold'
                 }}
               >
                 {ann.content || 'Type here'}
@@ -862,11 +885,12 @@ function AnnotationObject({
                 placeholder="Type here"
                 onChange={(e) => onUpdateContent(e.target.value)}
                 onBlur={(e) => onCommitContent(e.target.value)}
-                className={`col-start-1 row-start-1 w-full h-full resize-none overflow-hidden border rounded px-2 py-1 text-sm font-bold text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
+                className={`col-start-1 row-start-1 w-full h-full whitespace-pre resize-none overflow-hidden border rounded px-2 py-1 text-sm text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
                 style={{ 
                   color: ann.color || '#000000',
                   borderColor: (ann.color || '#000000') + (isSelected ? '80' : '40'),
                   fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
+                  fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold',
                   fieldSizing: 'content',
                 } as any}
                 rows={1}
@@ -921,10 +945,12 @@ function AnnotationObject({
   );
 }
 
-function ContextualToolbar({ annotation, onUpdateColor, onUpdateFontSize, onDelete, onDeselect }: {
+function ContextualToolbar({ annotation, onUpdateColor, onSetFontSize, onUpdateFontSize, onToggleBold, onDelete, onDeselect }: {
   annotation: CustomAnnotation;
   onUpdateColor: (color: string) => void;
+  onSetFontSize: (size: number) => void;
   onUpdateFontSize: (delta: number) => void;
+  onToggleBold: () => void;
   onDelete: () => void;
   onDeselect: () => void;
 }) {
@@ -947,12 +973,29 @@ function ContextualToolbar({ annotation, onUpdateColor, onUpdateFontSize, onDele
       </div>
       
       {annotation.type === 'text' && (
-        <div className="flex gap-1 pr-2 border-r">
+        <div className="flex items-center gap-2 pr-2 border-r">
+          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(-0.005)} className="h-8 w-8">
+            <span className="text-sm font-bold">A-</span>
+          </Button>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none cursor-pointer"
+            value={Math.round((annotation.width || 0.03) * 600)}
+            onChange={(e) => onSetFontSize(Number(e.target.value))}
+          >
+            {[8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48, 72].map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
           <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(0.005)} className="h-8 w-8">
             <span className="text-lg font-bold">A+</span>
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onUpdateFontSize(-0.005)} className="h-8 w-8">
-            <span className="text-sm font-bold">A-</span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onToggleBold} 
+            className={`h-8 w-8 ${annotation.fontWeight === 'normal' ? '' : 'bg-muted'}`}
+          >
+            <span className="font-bold">B</span>
           </Button>
         </div>
       )}

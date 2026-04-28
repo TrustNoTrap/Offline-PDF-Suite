@@ -217,6 +217,7 @@ export async function fillPDF(
     width?: number; // 0-1 relative to page width
     height?: number; // 0-1 relative to page height
     color?: string; // Hex color
+    fontWeight?: 'normal' | 'bold';
   }[]
 ): Promise<Uint8Array> {
   try {
@@ -257,6 +258,7 @@ export async function fillPDF(
 
     // 2. Add Custom Annotations (like Acrobat's "Fill & Sign")
     const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     
     for (const ann of customAnnotations) {
       const page = pdfDoc.getPage(ann.pageIndex);
@@ -272,11 +274,12 @@ export async function fillPDF(
         
         const lineHeight = fontSize * 1.2;
         const totalHeight = lines.length * lineHeight;
+        const currentFont = ann.fontWeight === 'normal' ? helveticaFont : helveticaBoldFont;
         
         lines.forEach((line, i) => {
           let textWidth = 0;
           try {
-            textWidth = helveticaBoldFont.widthOfTextAtSize(line, fontSize);
+            textWidth = currentFont.widthOfTextAtSize(line, fontSize);
           } catch {
             textWidth = (line.length * fontSize) * 0.5; // fallback approximation
           }
@@ -287,7 +290,7 @@ export async function fillPDF(
             x: centerX - textWidth / 2,
             y: lineY,
             size: fontSize,
-            font: helveticaBoldFont,
+            font: currentFont,
             color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
           });
         });
@@ -340,9 +343,9 @@ export async function fillPDF(
     }
 
     return await pdfDoc.save();
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof PDFError) throw error;
-    throw new PDFError('Failed to fill the PDF document.', 'FILL_FAILED');
+    throw new PDFError('Failed to fill the PDF document: ' + (error?.message || 'Unknown error'), 'FILL_FAILED');
   }
 }
 
