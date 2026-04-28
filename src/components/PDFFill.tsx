@@ -819,54 +819,57 @@ function AnnotationObject({
   const dragStartPos = useRef({ x: ann.x, y: ann.y });
 
   return (
-    <motion.div 
-      onPanStart={(e) => {
-        e.stopPropagation();
-        isDragging.current = true;
-        dragStartPos.current = { x: ann.x, y: ann.y };
-        onSelect();
-      }}
-      onPan={(e, info) => {
-        e.stopPropagation();
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          const deltaX = info.offset.x / rect.width;
-          const deltaY = info.offset.y / rect.height;
-          
-          onUpdatePositionLive(
-            Math.max(0, Math.min(1, dragStartPos.current.x + deltaX)), 
-            Math.max(0, Math.min(1, dragStartPos.current.y + deltaY))
-          );
-        }
-      }}
-      onPanEnd={(e, info) => {
-        setTimeout(() => { isDragging.current = false; }, 50);
-        
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          const deltaX = info.offset.x / rect.width;
-          const deltaY = info.offset.y / rect.height;
-          
-          onUpdatePosition(
-            Math.max(0, Math.min(1, dragStartPos.current.x + deltaX)), 
-            Math.max(0, Math.min(1, dragStartPos.current.y + deltaY))
-          );
-        }
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (!isDragging.current) {
-          onSelect();
-        }
-      }}
-      className={`absolute w-max -translate-x-1/2 -translate-y-1/2 cursor-move p-1.5 transition-shadow ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-sm' : 'hover:ring-1 hover:ring-primary/40 rounded-sm'}`}
+    <div 
+      className="absolute w-max -translate-x-1/2 -translate-y-1/2"
       style={{ 
         left: `${ann.x * 100}%`, 
         top: `${ann.y * 100}%`,
         zIndex: isSelected ? 50 : 10
       }}
     >
-      <div className="relative group/text">
+      <motion.div 
+        onPanStart={(e) => {
+          e.stopPropagation();
+          isDragging.current = true;
+          dragStartPos.current = { x: ann.x, y: ann.y };
+          onSelect();
+        }}
+        onPan={(e, info) => {
+          e.stopPropagation();
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const deltaX = info.offset.x / rect.width;
+            const deltaY = info.offset.y / rect.height;
+            
+            onUpdatePositionLive(
+              Math.max(0, Math.min(1, dragStartPos.current.x + deltaX)), 
+              Math.max(0, Math.min(1, dragStartPos.current.y + deltaY))
+            );
+          }
+        }}
+        onPanEnd={(e, info) => {
+          setTimeout(() => { isDragging.current = false; }, 50);
+          
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const deltaX = info.offset.x / rect.width;
+            const deltaY = info.offset.y / rect.height;
+            
+            onUpdatePosition(
+              Math.max(0, Math.min(1, dragStartPos.current.x + deltaX)), 
+              Math.max(0, Math.min(1, dragStartPos.current.y + deltaY))
+            );
+          }
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!isDragging.current) {
+            onSelect();
+          }
+        }}
+        className={`relative cursor-move p-1.5 transition-shadow ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-sm' : 'hover:ring-1 hover:ring-primary/40 rounded-sm'}`}
+      >
+        <div className="relative group/text">
         {isSelected && (
           <>
             {/* Corner Resize Handles using onPan for absolute control without nested drag issues */}
@@ -980,7 +983,8 @@ function AnnotationObject({
             </div>
           )}
         </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 

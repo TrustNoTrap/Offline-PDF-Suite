@@ -26,27 +26,33 @@ export class PDFError extends Error {
 let cachedRegularFont: Uint8Array | null = null;
 let cachedBoldFont: Uint8Array | null = null;
 
-// Versatile Arial Unicode MS font that covers almost every language.
+// Versatile FreeSans font that covers many languages including Hebrew, Arabic, Cyrillic, etc.
 // We use a high-quality TrueType font to support Unicode.
-const REGULAR_FONT_URL = 'https://raw.githubusercontent.com/the-maldridge/font-arial-unicode-ms/master/Arial%20Unicode.ttf';
-// Note: Bold version is less common as a single file, we can fake bold or just use regular if not found.
-// But we'll try to find one if possible. For now, we'll use regular for both if needed, 
-// or stick to regular since Arial Unicode covers so much.
-const BOLD_FONT_URL = 'https://raw.githubusercontent.com/the-maldridge/font-arial-unicode-ms/master/Arial%20Unicode.ttf';
+const REGULAR_FONT_URL = 'https://cdn.jsdelivr.net/gh/half-serious/pdf-lib-example@master/public/fonts/FreeSans.ttf';
+const BOLD_FONT_URL = 'https://cdn.jsdelivr.net/gh/half-serious/pdf-lib-example@master/public/fonts/FreeSansBold.ttf';
 
 async function getUnicodeFonts() {
   try {
     if (!cachedRegularFont) {
+      console.log('Fetching regular Unicode font...');
       const resp = await fetch(REGULAR_FONT_URL);
-      if (!resp.ok) throw new Error('Failed to fetch regular font');
+      if (!resp.ok) throw new Error('Failed to fetch regular font: ' + resp.statusText);
       const buffer = await resp.arrayBuffer();
       cachedRegularFont = new Uint8Array(buffer);
-      // We'll use the same for bold if we can't find a dedicated bold one that covers all languages
-      cachedBoldFont = cachedRegularFont; 
+    }
+    if (!cachedBoldFont) {
+      console.log('Fetching bold Unicode font...');
+      const resp = await fetch(BOLD_FONT_URL);
+      if (resp.ok) {
+        cachedBoldFont = new Uint8Array(await resp.arrayBuffer());
+      } else {
+        console.warn('Failed to fetch bold font, falling back to regular');
+        cachedBoldFont = cachedRegularFont;
+      }
     }
     return { regular: cachedRegularFont, bold: cachedBoldFont };
   } catch (err) {
-    console.error('Font loading fallback:', err);
+    console.error('Critical Font Loading Error:', err);
     return null;
   }
 }
@@ -263,9 +269,8 @@ export async function fillPDF(
       regularFont = await pdfDoc.embedFont(unicodeFonts.regular, { subset: true });
       boldFont = await pdfDoc.embedFont(unicodeFonts.bold || unicodeFonts.regular, { subset: true });
     } else {
-      // Fallback
-      regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      // If font loading failed, we MUST inform the user rather than falling back to WinAnsi which will crash on Unicode
+      throw new PDFError('Required Unicode fonts could not be loaded. Please check your internet connection and ensure your language is supported.', 'FONT_LOAD_FAILED');
     }
 
     const form = pdfDoc.getForm();
@@ -343,6 +348,7 @@ export async function fillPDF(
           x: centerX - textWidth / 2,
           y: centerY - size * 0.35,
           size: size,
+          font: regularFont,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
       } else if (ann.type === 'cross') {
@@ -352,6 +358,7 @@ export async function fillPDF(
           x: centerX - textWidth / 2,
           y: centerY - size * 0.35,
           size: size,
+          font: regularFont,
           color: ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0),
         });
       } else if (ann.type === 'dot') {
