@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { createWorker } from 'tesseract.js';
 
 // ============================================================================
@@ -18,6 +19,35 @@ export class PDFError extends Error {
   constructor(message: string, public readonly code: string) {
     super(message);
     this.name = 'PDFError';
+  }
+}
+
+// Font Cache to avoid re-fetching
+let cachedRegularFont: Uint8Array | null = null;
+let cachedBoldFont: Uint8Array | null = null;
+
+// Versatile Arial Unicode MS font that covers almost every language.
+// We use a high-quality TrueType font to support Unicode.
+const REGULAR_FONT_URL = 'https://raw.githubusercontent.com/the-maldridge/font-arial-unicode-ms/master/Arial%20Unicode.ttf';
+// Note: Bold version is less common as a single file, we can fake bold or just use regular if not found.
+// But we'll try to find one if possible. For now, we'll use regular for both if needed, 
+// or stick to regular since Arial Unicode covers so much.
+const BOLD_FONT_URL = 'https://raw.githubusercontent.com/the-maldridge/font-arial-unicode-ms/master/Arial%20Unicode.ttf';
+
+async function getUnicodeFonts() {
+  try {
+    if (!cachedRegularFont) {
+      const resp = await fetch(REGULAR_FONT_URL);
+      if (!resp.ok) throw new Error('Failed to fetch regular font');
+      const buffer = await resp.arrayBuffer();
+      cachedRegularFont = new Uint8Array(buffer);
+      // We'll use the same for bold if we can't find a dedicated bold one that covers all languages
+      cachedBoldFont = cachedRegularFont; 
+    }
+    return { regular: cachedRegularFont, bold: cachedBoldFont };
+  } catch (err) {
+    console.error('Font loading fallback:', err);
+    return null;
   }
 }
 
@@ -223,6 +253,21 @@ export async function fillPDF(
   try {
     const pdfBytes = await pdfFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(pdfBytes);
+    pdfDoc.registerFontkit(fontkit);
+    
+    const unicodeFonts = await getUnicodeFonts();
+    let regularFont: any;
+    let boldFont: any;
+
+    if (unicodeFonts) {
+      regularFont = await pdfDoc.embedFont(unicodeFonts.regular, { subset: true });
+      boldFont = await pdfDoc.embedFont(unicodeFonts.bold || unicodeFonts.regular, { subset: true });
+    } else {
+      // Fallback
+      regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    }
+
     const form = pdfDoc.getForm();
 
     // Helper to parse hex color to pdf-lib rgb
@@ -256,10 +301,7 @@ export async function fillPDF(
       }
     }
 
-    // 2. Add Custom Annotations (like Acrobat's "Fill & Sign")
-    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    
+    // 2. Add Custom Annotations (like Acrobat\'s "Fill & Sign")
     for (const ann of customAnnotations) {
       const page = pdfDoc.getPage(ann.pageIndex);
       const { width, height } = page.getSize();
@@ -274,7 +316,7 @@ export async function fillPDF(
         
         const lineHeight = fontSize * 1.2;
         const totalHeight = lines.length * lineHeight;
-        const currentFont = ann.fontWeight === 'normal' ? helveticaFont : helveticaBoldFont;
+        const currentFont = ann.fontWeight === 'normal' ? regularFont : boldFont;
         
         lines.forEach((line, i) => {
           let textWidth = 0;

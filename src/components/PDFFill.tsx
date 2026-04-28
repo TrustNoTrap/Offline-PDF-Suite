@@ -82,6 +82,15 @@ export function PDFFill() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 }); // Normalized 0-1
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Persistence of tool settings
+  const [persistentSettings, setPersistentSettings] = useState({
+    text: { width: 0.03, fontWeight: 'bold' as const, color: COLORS[0].value },
+    check: { width: 0.05, color: COLORS[0].value },
+    cross: { width: 0.05, color: COLORS[0].value },
+    dot: { width: 0.02, color: COLORS[0].value },
+    signature: { width: 0.25 }
+  });
+
   // History Management
   const pushToHistory = useCallback((newAnnotations: CustomAnnotation[]) => {
     setPast(prev => [...prev, annotationsRef.current]);
@@ -168,6 +177,9 @@ export function PDFFill() {
       return;
     }
 
+    const toolType = selectedTool as Exclude<AnnotationType, 'none' | 'signature'>;
+    const settings = persistentSettings[toolType] || { width: 0.03, color: selectedColor };
+
     const newAnnotation: CustomAnnotation = {
       id: Math.random().toString(36).substr(2, 9),
       pageIndex,
@@ -175,8 +187,9 @@ export function PDFFill() {
       x,
       y,
       content: selectedTool === 'text' ? '' : undefined,
-      color: selectedColor,
-      width: selectedTool === 'text' ? 0.03 : undefined, // Default font size scale
+      color: settings.color || selectedColor,
+      width: settings.width,
+      fontWeight: toolType === 'text' ? (settings as any).fontWeight : undefined,
     };
 
     pushToHistory([...annotations, newAnnotation]);
@@ -210,7 +223,7 @@ export function PDFFill() {
       x,
       y,
       imageUrl: tempSignature,
-      width: 0.25, // Default width 25% of page
+      width: persistentSettings.signature.width,
     };
 
     pushToHistory([...annotations, newAnnotation]);
@@ -283,6 +296,13 @@ export function PDFFill() {
 
   const updateAnnotationSize = (id: string, width: number, height?: number) => {
     const current = annotationsRef.current;
+    const ann = current.find(a => a.id === id);
+    if (ann) {
+      setPersistentSettings(prev => ({
+        ...prev,
+        [ann.type]: { ...prev[ann.type as keyof typeof prev], width }
+      }));
+    }
     pushToHistory(current.map(a => a.id === id ? { ...a, width, height } : a));
   };
 
@@ -520,13 +540,25 @@ export function PDFFill() {
                   <ContextualToolbar 
                     annotation={selectedAnnotation}
                     onUpdateColor={(color) => {
+                      const selectedAnnotation = annotations.find(a => a.id === selectedAnnotationId);
+                      if (selectedAnnotation) {
+                        setPersistentSettings(prev => ({
+                          ...prev,
+                          [selectedAnnotation.type]: { ...prev[selectedAnnotation.type as keyof typeof prev], color }
+                        }));
+                      }
                       pushToHistory(annotations.map(a => a.id === selectedAnnotationId ? { ...a, color } : a));
                     }}
                     onSetFontSize={(size) => {
+                      const newWidth = size / 600;
+                      setPersistentSettings(prev => ({
+                        ...prev,
+                        text: { ...prev.text, width: newWidth }
+                      }));
                       const newAnnotations = annotations.map(a => {
                         if (a.id === selectedAnnotationId) {
                           // Math maps size 18 to 0.03
-                          return { ...a, width: size / 600 };
+                          return { ...a, width: newWidth };
                         }
                         return a;
                       });
@@ -536,7 +568,12 @@ export function PDFFill() {
                       const newAnnotations = annotations.map(a => {
                         if (a.id === selectedAnnotationId) {
                           const currentSize = a.width || 0.03;
-                          return { ...a, width: Math.max(0.01, Math.min(0.5, currentSize + delta)) };
+                          const newWidth = Math.max(0.01, Math.min(0.5, currentSize + delta));
+                          setPersistentSettings(prev => ({
+                            ...prev,
+                            [a.type]: { ...prev[a.type as keyof typeof prev], width: newWidth }
+                          }));
+                          return { ...a, width: newWidth };
                         }
                         return a;
                       });
@@ -546,7 +583,12 @@ export function PDFFill() {
                       const newAnnotations = annotations.map(a => {
                         if (a.id === selectedAnnotationId) {
                           const currentWeight = a.fontWeight || 'bold';
-                          return { ...a, fontWeight: currentWeight === 'bold' ? 'normal' : 'bold' as 'normal' | 'bold' };
+                          const newWeight = currentWeight === 'bold' ? 'normal' : 'bold' as 'normal' | 'bold';
+                          setPersistentSettings(prev => ({
+                            ...prev,
+                            text: { ...prev.text, fontWeight: newWeight }
+                          }));
+                          return { ...a, fontWeight: newWeight };
                         }
                         return a;
                       });
@@ -817,86 +859,84 @@ function AnnotationObject({
           onSelect();
         }
       }}
-      className="absolute w-max"
+      className={`absolute w-max -translate-x-1/2 -translate-y-1/2 cursor-move p-1.5 transition-shadow ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-sm' : 'hover:ring-1 hover:ring-primary/40 rounded-sm'}`}
       style={{ 
         left: `${ann.x * 100}%`, 
         top: `${ann.y * 100}%`,
         zIndex: isSelected ? 50 : 10
       }}
     >
-      <div className="relative p-8 -translate-x-1/2 -translate-y-1/2 group cursor-move">
-        <div className={`relative p-1.5 ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-sm' : 'group-hover:ring-1 group-hover:ring-primary/20 rounded-sm'}`}>
-          {isSelected && (
-            <>
-              {/* Corner Resize Handles using onPan for absolute control without nested drag issues */}
-              {[
-                { pos: 'bottom-right', class: '-bottom-1.5 -right-1.5 cursor-se-resize' },
-                { pos: 'bottom-left', class: '-bottom-1.5 -left-1.5 cursor-sw-resize' },
-                { pos: 'top-right', class: '-top-1.5 -right-1.5 cursor-ne-resize' },
-                { pos: 'top-left', class: '-top-1.5 -left-1.5 cursor-nw-resize' },
-              ].map((handle) => (
-                <motion.div 
-                  key={handle.pos}
-                  onPanStart={(e) => e.stopPropagation()}
-                  onPan={(e, info) => {
-                    e.stopPropagation();
-                    if (containerRef.current) {
-                      const rect = containerRef.current.getBoundingClientRect();
-                      const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
-                      const multiplier = handle.pos.includes('right') ? 1 : -1;
-                      const delta = (info.delta.x / rect.width) * multiplier * 0.5;
-                      onUpdateSizeLive(Math.max(0.005, Math.min(0.8, currentSize + delta)));
-                    }
-                  }}
-                  onPanEnd={(e, info) => {
-                    e.stopPropagation();
-                    if (containerRef.current) {
-                      const rect = containerRef.current.getBoundingClientRect();
-                      const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
-                      const multiplier = handle.pos.includes('right') ? 1 : -1;
-                      const delta = (info.delta.x / rect.width) * multiplier * 0.5;
-                      onUpdateSize(Math.max(0.005, Math.min(0.8, currentSize + delta)));
-                    }
-                  }}
-                  className={`absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-full z-50 shadow-md ${handle.class}`}
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                />
-              ))}
-            </>
-          )}
-          
-          {ann.type === 'text' && (
-            <div className="relative group/text grid place-items-center">
-              <div 
-                className="col-start-1 row-start-1 invisible whitespace-pre px-2 py-1 text-sm min-w-[10px] text-center pointer-events-none"
-                style={{ 
-                  fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
-                  fontFamily: 'inherit',
-                  fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold'
+      <div className="relative group/text">
+        {isSelected && (
+          <>
+            {/* Corner Resize Handles using onPan for absolute control without nested drag issues */}
+            {[
+              { pos: 'bottom-right', class: '-bottom-1.5 -right-1.5 cursor-se-resize' },
+              { pos: 'bottom-left', class: '-bottom-1.5 -left-1.5 cursor-sw-resize' },
+              { pos: 'top-right', class: '-top-1.5 -right-1.5 cursor-ne-resize' },
+              { pos: 'top-left', class: '-top-1.5 -left-1.5 cursor-nw-resize' },
+            ].map((handle) => (
+              <motion.div 
+                key={handle.pos}
+                onPanStart={(e) => e.stopPropagation()}
+                onPan={(e, info) => {
+                  e.stopPropagation();
+                  if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect();
+                    const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
+                    const multiplier = handle.pos.includes('right') ? 1 : -1;
+                    const delta = (info.delta.x / rect.width) * multiplier * 0.5;
+                    onUpdateSizeLive(Math.max(0.005, Math.min(0.8, currentSize + delta)));
+                  }
                 }}
-              >
-                {ann.content || 'Type here'}
-                {ann.content?.endsWith('\n') ? <br /> : null}
-              </div>
-              <textarea 
-                autoFocus={isSelected}
-                value={ann.content}
-                placeholder="Type here"
-                onChange={(e) => onUpdateContent(e.target.value)}
-                onBlur={(e) => onCommitContent(e.target.value)}
-                className={`col-start-1 row-start-1 w-full h-full whitespace-pre resize-none overflow-hidden border rounded px-2 py-1 text-sm text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
-                style={{ 
-                  color: ann.color || '#000000',
-                  borderColor: (ann.color || '#000000') + (isSelected ? '80' : '40'),
-                  fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
-                  fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold',
-                  fieldSizing: 'content',
-                } as any}
-                rows={1}
+                onPanEnd={(e, info) => {
+                  e.stopPropagation();
+                  if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect();
+                    const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
+                    const multiplier = handle.pos.includes('right') ? 1 : -1;
+                    const delta = (info.delta.x / rect.width) * multiplier * 0.5;
+                    onUpdateSize(Math.max(0.005, Math.min(0.8, currentSize + delta)));
+                  }
+                }}
+                className={`absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-full z-50 shadow-md ${handle.class}`}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               />
+            ))}
+          </>
+        )}
+        {ann.type === 'text' && (
+          <div className="relative grid place-items-center">
+            <div 
+              className="col-start-1 row-start-1 invisible whitespace-pre px-2 py-1 text-sm min-w-[10px] text-center pointer-events-none"
+              style={{ 
+                fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
+                fontFamily: 'inherit',
+                fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold'
+              }}
+            >
+              {ann.content || 'Type here'}
+              {ann.content?.endsWith('\n') ? <br /> : null}
             </div>
-          )}
+            <textarea 
+              autoFocus={isSelected}
+              value={ann.content}
+              placeholder="Type here"
+              onChange={(e) => onUpdateContent(e.target.value)}
+              onBlur={(e) => onCommitContent(e.target.value)}
+              className={`col-start-1 row-start-1 w-full h-full whitespace-pre resize-none overflow-hidden border rounded px-2 py-1 text-sm text-center outline-none focus:ring-0 transition-colors selection:bg-yellow-400 selection:text-black ${isSelected ? 'bg-white' : 'bg-white/50'}`}
+              style={{ 
+                color: ann.color || '#000000',
+                borderColor: (ann.color || '#000000') + (isSelected ? '80' : '40'),
+                fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
+                fontWeight: ann.fontWeight === 'normal' ? 'normal' : 'bold',
+                fieldSizing: 'content',
+              } as any}
+              rows={1}
+            />
+          </div>
+        )}
           
           {ann.type === 'check' && (
             <Check 
@@ -940,7 +980,6 @@ function AnnotationObject({
             </div>
           )}
         </div>
-      </div>
     </motion.div>
   );
 }
