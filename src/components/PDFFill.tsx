@@ -795,7 +795,7 @@ function AnnotationObject({
           onSelect();
         }
       }}
-      className="absolute"
+      className="absolute w-max"
       style={{ 
         left: `${ann.x * 100}%`, 
         top: `${ann.y * 100}%`,
