@@ -267,7 +267,7 @@ export async function fillPDF(
 
       if (ann.type === 'text' && ann.content) {
         // Map width (fraction or font-scale) to font size
-        const fontSize = ann.width ? ann.width * 100 : 12;
+        const fontSize = (ann.width || 0.03) * width;
         const lines = ann.content.split('\n');
         
         const lineHeight = fontSize * 1.2;

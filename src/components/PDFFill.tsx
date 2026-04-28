@@ -64,7 +64,7 @@ export function PDFFill() {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   
-  const [selectedTool, setSelectedTool] = useState<AnnotationType>('none');
+  const [selectedTool, setSelectedTool] = useState<AnnotationType>('text');
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
   const [annotations, setAnnotations] = useState<CustomAnnotation[]>([]);
   const annotationsRef = useRef<CustomAnnotation[]>([]);
@@ -175,10 +175,13 @@ export function PDFFill() {
       y,
       content: selectedTool === 'text' ? 'Type here' : undefined,
       color: selectedColor,
-      width: selectedTool === 'text' ? 0.14 : undefined, // Default font size scale
+      width: selectedTool === 'text' ? 0.03 : undefined, // Default font size scale
     };
 
     pushToHistory([...annotations, newAnnotation]);
+    if (selectedTool === 'text') {
+      setSelectedAnnotationId(newAnnotation.id);
+    }
   };
 
   const handleRemoveAnnotation = (id: string) => {
@@ -520,7 +523,7 @@ export function PDFFill() {
                     onUpdateFontSize={(delta) => {
                       const newAnnotations = annotations.map(a => {
                         if (a.id === selectedAnnotationId) {
-                          const currentSize = a.width || 0.14;
+                          const currentSize = a.width || 0.03;
                           return { ...a, width: Math.max(0.01, Math.min(0.5, currentSize + delta)) };
                         }
                         return a;
@@ -817,20 +820,20 @@ function AnnotationObject({
                     e.stopPropagation();
                     if (containerRef.current) {
                       const rect = containerRef.current.getBoundingClientRect();
-                      const currentSize = ann.width || (ann.type === 'text' ? 0.14 : 0.05);
+                      const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
                       const multiplier = handle.pos.includes('right') ? 1 : -1;
                       const delta = (info.delta.x / rect.width) * multiplier;
-                      onUpdateSizeLive(Math.max(0.01, Math.min(0.8, currentSize + delta)));
+                      onUpdateSizeLive(Math.max(0.005, Math.min(0.8, currentSize + delta)));
                     }
                   }}
                   onPanEnd={(e, info) => {
                     e.stopPropagation();
                     if (containerRef.current) {
                       const rect = containerRef.current.getBoundingClientRect();
-                      const currentSize = ann.width || (ann.type === 'text' ? 0.14 : 0.05);
+                      const currentSize = ann.width || (ann.type === 'text' ? 0.03 : 0.05);
                       const multiplier = handle.pos.includes('right') ? 1 : -1;
                       const delta = (info.delta.x / rect.width) * multiplier;
-                      onUpdateSize(Math.max(0.01, Math.min(0.8, currentSize + delta)));
+                      onUpdateSize(Math.max(0.005, Math.min(0.8, currentSize + delta)));
                     }
                   }}
                   className={`absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-full z-50 shadow-md ${handle.class}`}
@@ -846,7 +849,7 @@ function AnnotationObject({
               <div 
                 className="col-start-1 row-start-1 invisible whitespace-pre-wrap px-2 py-1 text-sm font-bold min-w-[10px] text-center pointer-events-none"
                 style={{ 
-                  fontSize: ann.width ? `${ann.width * 100}px` : 'inherit',
+                  fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
                   fontFamily: 'inherit',
                 }}
               >
@@ -862,7 +865,7 @@ function AnnotationObject({
                 style={{ 
                   color: ann.color || '#000000',
                   borderColor: (ann.color || '#000000') + (isSelected ? '80' : '40'),
-                  fontSize: ann.width ? `${ann.width * 100}px` : 'inherit',
+                  fontSize: `${(ann.width || 0.03) * containerDimensions.width}px`,
                   fieldSizing: 'content',
                 } as any}
                 rows={1}
