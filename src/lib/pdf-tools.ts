@@ -26,27 +26,48 @@ export class PDFError extends Error {
 let cachedRegularFont: Uint8Array | null = null;
 let cachedBoldFont: Uint8Array | null = null;
 
-// Versatile FreeSans font that covers many languages including Hebrew, Arabic, Cyrillic, etc.
-// We use a high-quality TrueType font to support Unicode.
-const REGULAR_FONT_URL = 'https://cdn.jsdelivr.net/gh/half-serious/pdf-lib-example@master/public/fonts/FreeSans.ttf';
-const BOLD_FONT_URL = 'https://cdn.jsdelivr.net/gh/half-serious/pdf-lib-example@master/public/fonts/FreeSansBold.ttf';
+// Versatile fonts that cover many languages including Hebrew, Arabic, Cyrillic, etc.
+// We try multiple CDN sources to ensure reliability.
+const REGULAR_FONT_URLS = [
+  'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf',
+  'https://unpkg.com/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf',
+  'https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/resources/DejaVuSans.ttf'
+];
+
+const BOLD_FONT_URLS = [
+  'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf',
+  'https://unpkg.com/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf',
+  'https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/resources/DejaVuSans-Bold.ttf'
+];
+
+async function fetchWithFallback(urls: string[]): Promise<Uint8Array> {
+  let lastError: Error | null = null;
+  for (const url of urls) {
+    try {
+      console.log(`Attempting to fetch font from: ${url}`);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      const buffer = await resp.arrayBuffer();
+      console.log(`Successfully loaded font from: ${url}`);
+      return new Uint8Array(buffer);
+    } catch (err) {
+      console.warn(`Failed to fetch from ${url}:`, err);
+      lastError = err as Error;
+    }
+  }
+  throw lastError || new Error('All font sources failed');
+}
 
 async function getUnicodeFonts() {
   try {
     if (!cachedRegularFont) {
-      console.log('Fetching regular Unicode font...');
-      const resp = await fetch(REGULAR_FONT_URL);
-      if (!resp.ok) throw new Error('Failed to fetch regular font: ' + resp.statusText);
-      const buffer = await resp.arrayBuffer();
-      cachedRegularFont = new Uint8Array(buffer);
+      cachedRegularFont = await fetchWithFallback(REGULAR_FONT_URLS);
     }
     if (!cachedBoldFont) {
-      console.log('Fetching bold Unicode font...');
-      const resp = await fetch(BOLD_FONT_URL);
-      if (resp.ok) {
-        cachedBoldFont = new Uint8Array(await resp.arrayBuffer());
-      } else {
-        console.warn('Failed to fetch bold font, falling back to regular');
+      try {
+        cachedBoldFont = await fetchWithFallback(BOLD_FONT_URLS);
+      } catch (err) {
+        console.warn('Bold font failed all sources, using regular as fallback');
         cachedBoldFont = cachedRegularFont;
       }
     }
@@ -306,6 +327,13 @@ export async function fillPDF(
       }
     }
 
+    // Set the font for all form fields to handle Unicode characters.
+    try {
+      form.updateFieldAppearances(regularFont);
+    } catch (err) {
+      console.warn('Failed to update form field appearances:', err);
+    }
+
     // 2. Add Custom Annotations (like Acrobat\'s "Fill & Sign")
     for (const ann of customAnnotations) {
       const page = pdfDoc.getPage(ann.pageIndex);
@@ -343,8 +371,10 @@ export async function fillPDF(
         });
       } else if (ann.type === 'check') {
         const size = (ann.width || 0.05) * width;
-        const textWidth = size * 0.6; // Approximate width for center
-        page.drawText('✓', {
+        // Use a standard 'V' or similar if the emoji is missing, but FreeSans should have it.
+        const text = '✓';
+        const textWidth = regularFont.widthOfTextAtSize(text, size);
+        page.drawText(text, {
           x: centerX - textWidth / 2,
           y: centerY - size * 0.35,
           size: size,
@@ -353,8 +383,9 @@ export async function fillPDF(
         });
       } else if (ann.type === 'cross') {
         const size = (ann.width || 0.05) * width;
-        const textWidth = size * 0.6;
-        page.drawText('✕', {
+        const text = '✕';
+        const textWidth = regularFont.widthOfTextAtSize(text, size);
+        page.drawText(text, {
           x: centerX - textWidth / 2,
           y: centerY - size * 0.35,
           size: size,

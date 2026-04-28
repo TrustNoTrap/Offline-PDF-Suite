@@ -67,6 +67,28 @@ export function PDFFill() {
   
   const [selectedTool, setSelectedTool] = useState<AnnotationType>('text');
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
+
+  // Sync selected color with current tool's persistent setting
+  const updateSelectedColor = (color: string) => {
+    setSelectedColor(color);
+    if (selectedTool !== 'none' && selectedTool !== 'signature') {
+      setPersistentSettings(prev => ({
+        ...prev,
+        [selectedTool]: { ...prev[selectedTool as keyof typeof prev], color }
+      }));
+    }
+  };
+
+  // When switching tools, update the selected color to the tool's persistent color
+  useEffect(() => {
+    if (selectedTool !== 'none' && selectedTool !== 'signature') {
+      const toolColor = (persistentSettings as any)[selectedTool]?.color;
+      if (toolColor) {
+        setSelectedColor(toolColor);
+      }
+    }
+  }, [selectedTool]);
+
   const [annotations, setAnnotations] = useState<CustomAnnotation[]>([]);
   const annotationsRef = useRef<CustomAnnotation[]>([]);
   
@@ -388,7 +410,7 @@ export function PDFFill() {
                 {COLORS.map((color) => (
                   <button
                     key={color.value}
-                    onClick={() => setSelectedColor(color.value)}
+                    onClick={() => updateSelectedColor(color.value)}
                     className={`w-6 h-6 rounded-full border-2 transition-all ${
                       selectedColor === color.value 
                         ? 'border-primary ring-2 ring-primary/20 scale-110' 
