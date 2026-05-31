@@ -29,6 +29,9 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
   // Tracks whether the user has interacted with the page order (to avoid triggering
   // auto-preview on the initial file load).
   const hasReorderedRef = useRef(false);
+  // Incremented by commitHistory so the auto-preview effect re-runs after a drag-end
+  // even though pageIndices itself didn't change after onReorder already updated it.
+  const [previewUpdateTick, setPreviewUpdateTick] = useState(0);
   // Debounce timer for auto-preview generation after a drag-and-drop reorder.
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -97,6 +100,9 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
         setPreviewBytes(null);
         // Mark that the user has reordered at least once so auto-preview can fire
         hasReorderedRef.current = true;
+        // Bump tick so the auto-preview useEffect re-runs even though pageIndices
+        // was already updated during the drag (by onReorder) before this callback fires.
+        setPreviewUpdateTick((t) => t + 1);
       }
     }
   };
@@ -140,7 +146,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     };
-  }, [pageIndices, files, onPreviewChange]);
+  }, [pageIndices, previewUpdateTick, files, onPreviewChange]);
 
   const handlePreview = async () => {
     if (files.length === 0) return;

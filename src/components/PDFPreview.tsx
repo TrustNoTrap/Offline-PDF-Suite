@@ -86,6 +86,12 @@ const PDFPage: React.FC<{ pdf: pdfjsLib.PDFDocumentProxy, pageNumber: number }> 
     return () => observer.disconnect();
   }, []);
 
+  // Reset isRendered when the PDF document changes so the page re-renders with
+  // the new content (without this, the old canvas is frozen once isRendered = true).
+  useEffect(() => {
+    setIsRendered(false);
+  }, [pdf]);
+
   useEffect(() => {
     if (!isVisible || isRendered || !canvasRef.current) return;
 

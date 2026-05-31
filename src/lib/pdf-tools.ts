@@ -512,8 +512,12 @@ export function downloadBlob(data: Uint8Array | Blob, fileName: string, mimeType
   link.setAttribute('download', fileName);
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+  // Delay cleanup so the browser has time to start the download before the
+  // object URL is revoked (revoking too early produces an empty file in some browsers).
+  setTimeout(() => {
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }, 150);
 }
 
 /**
