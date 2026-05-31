@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { createWorker } from 'tesseract.js';
 
@@ -429,6 +429,83 @@ export async function fillPDF(
   }
 }
 
+export interface EditedPage {
+  /** Unique stable identifier used only by the UI */
+  id: string;
+  /** Where this page comes from */
+  sourceType: 'original' | 'inserted' | 'blank';
+  /** Index in the original/source PDF (used when sourceType !== 'blank') */
+  originalIndex: number;
+  /**
+   * The source file for 'inserted' pages.
+   * For 'original' pages this is the main document file (passed separately).
+   */
+  sourceFile?: File;
+  /** Clockwise rotation to add in degrees (0 | 90 | 180 | 270) */
+  rotation: number;
+  /** Width in points for blank pages (default: 612 = US Letter) */
+  blankWidth?: number;
+  /** Height in points for blank pages (default: 792 = US Letter) */
+  blankHeight?: number;
+}
+
+/**
+ * Builds a new PDF from an ordered list of page descriptors.
+ * Supports keeping/reordering original pages, inserting pages from other PDFs,
+ * inserting blank pages, and rotating any page.
+ */
+export async function buildEditedPDF(
+  originalFile: File,
+  pages: EditedPage[]
+): Promise<Uint8Array> {
+  try {
+    const newPdf = await PDFDocument.create();
+
+    // Cache loaded PDFs to avoid re-parsing the same file multiple times
+    const pdfCache = new Map<string, PDFDocument>();
+
+    const getDoc = async (file: File): Promise<PDFDocument> => {
+      const cacheKey = `${file.name}-${file.size}-${file.lastModified}`;
+      if (!pdfCache.has(cacheKey)) {
+        const bytes = await file.arrayBuffer();
+        pdfCache.set(cacheKey, await PDFDocument.load(bytes));
+      }
+      return pdfCache.get(cacheKey)!;
+    };
+
+    for (const page of pages) {
+      if (page.sourceType === 'blank') {
+        const w = page.blankWidth ?? 612;
+        const h = page.blankHeight ?? 792;
+        newPdf.addPage([w, h]);
+      } else {
+        const sourceFile =
+          page.sourceType === 'original' ? originalFile : page.sourceFile!;
+        const srcDoc = await getDoc(sourceFile);
+        const [copiedPage] = await newPdf.copyPages(srcDoc, [page.originalIndex]);
+        newPdf.addPage(copiedPage);
+      }
+
+      // Apply rotation to the page we just added
+      if (page.rotation !== 0) {
+        const addedPage = newPdf.getPage(newPdf.getPageCount() - 1);
+        const currentRotation = addedPage.getRotation().angle;
+        addedPage.setRotation(degrees((currentRotation + page.rotation) % 360));
+      }
+    }
+
+    return await newPdf.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to build the edited PDF.', 'EDIT_FAILED');
+  }
+}
+
+// Minimum milliseconds to wait before revoking the object URL used for a download.
+// Some browsers (e.g. older Firefox) revoke the data before the download starts if
+// revokeObjectURL is called synchronously, resulting in an empty file.
+const DOWNLOAD_CLEANUP_DELAY_MS = 150;
+
 /**
  * Helper to download a Uint8Array as a file.
  */
@@ -440,8 +517,12 @@ export function downloadBlob(data: Uint8Array | Blob, fileName: string, mimeType
   link.setAttribute('download', fileName);
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+  // Delay cleanup so the browser has time to start the download before the
+  // object URL is revoked (revoking too early produces an empty file in some browsers).
+  setTimeout(() => {
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }, DOWNLOAD_CLEANUP_DELAY_MS);
 }
 
 /**
@@ -458,5 +539,133 @@ export function generateFileName(mode: 'timestamp' | 'prefix' | 'both' | 'origin
     case 'original': return `${base}.pdf`;
     case 'prefix_original': return `${prefixBase}_${base}.pdf`;
     default: return `${base}_${timestamp}.pdf`;
+  }
+}
+
+/**
+ * Compresses a PDF by re-saving with object stream optimization.
+ * Works best on unoptimized PDFs; savings vary by source document.
+ */
+export async function compressPDF(pdfFile: File): Promise<Uint8Array> {
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    return await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to compress PDF.', 'COMPRESS_FAILED');
+  }
+}
+
+export interface WatermarkOptions {
+  text: string;
+  fontSize: number;
+  opacity: number;
+  /** RGB channels in the range 0–1 */
+  color: [number, number, number];
+  /** Rotation in degrees (counter-clockwise) */
+  rotation: number;
+}
+
+/**
+ * Adds a text watermark centered on every page of a PDF.
+ * The watermark position is calculated so the text center aligns with the page center
+ * regardless of the rotation angle.
+ */
+export async function watermarkPDF(pdfFile: File, options: WatermarkOptions): Promise<Uint8Array> {
+  const { text, fontSize, opacity, color, rotation } = options;
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    for (const page of pdfDoc.getPages()) {
+      const { width, height } = page.getSize();
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+
+      // Compute the draw origin so the visual center of the rotated text
+      // lands on the page center.
+      const rad = (rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const x = width / 2 - (textWidth / 2) * cos + (fontSize / 2) * sin;
+      const y = height / 2 - (textWidth / 2) * sin - (fontSize / 2) * cos;
+
+      page.drawText(text, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color: rgb(color[0], color[1], color[2]),
+        opacity,
+        rotate: degrees(rotation),
+      });
+    }
+
+    return await pdfDoc.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to add watermark to PDF.', 'WATERMARK_FAILED');
+  }
+}
+
+export interface PageNumberOptions {
+  position: 'bottom-left' | 'bottom-center' | 'bottom-right' | 'top-left' | 'top-center' | 'top-right';
+  format: 'number' | 'number-of-total' | 'page-number' | 'page-number-of-total';
+  startNumber: number;
+  fontSize: number;
+  /** Distance from the nearest edge in points */
+  margin: number;
+  /** RGB channels in the range 0–1; defaults to black */
+  color?: [number, number, number];
+}
+
+/**
+ * Adds page numbers to every page of a PDF.
+ */
+export async function addPageNumbers(pdfFile: File, options: PageNumberOptions): Promise<Uint8Array> {
+  const { position, format, startNumber, fontSize, margin, color = [0, 0, 0] } = options;
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pages = pdfDoc.getPages();
+    const total = pages.length;
+
+    pages.forEach((page, i) => {
+      const { width, height } = page.getSize();
+      const pageNum = startNumber + i;
+
+      let text: string;
+      switch (format) {
+        case 'number':               text = `${pageNum}`; break;
+        case 'number-of-total':      text = `${pageNum} / ${total}`; break;
+        case 'page-number':          text = `Page ${pageNum}`; break;
+        case 'page-number-of-total': text = `Page ${pageNum} of ${total}`; break;
+        default:                     text = `${pageNum}`;
+      }
+
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const isBottom = position.startsWith('bottom');
+      const y = isBottom ? margin : height - margin - fontSize;
+
+      let x: number;
+      if (position.endsWith('left'))       x = margin;
+      else if (position.endsWith('right'))  x = width - textWidth - margin;
+      else                                  x = (width - textWidth) / 2; // center
+
+      page.drawText(text, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color: rgb(color[0], color[1], color[2]),
+      });
+    });
+
+    return await pdfDoc.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to add page numbers to PDF.', 'PAGE_NUMBERS_FAILED');
   }
 }

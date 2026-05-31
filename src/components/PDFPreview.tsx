@@ -20,7 +20,9 @@ export function PDFPreview({ file }: PDFPreviewProps) {
       try {
         let data: Uint8Array | ArrayBuffer;
         if (file instanceof Uint8Array) {
-          data = file;
+          // Use a copy so that pdf.js's worker-transfer does not detach the
+          // original Uint8Array (callers may still need it for downloads).
+          data = file.slice();
         } else {
           data = await file.arrayBuffer();
         }
@@ -85,6 +87,12 @@ const PDFPage: React.FC<{ pdf: pdfjsLib.PDFDocumentProxy, pageNumber: number }> 
 
     return () => observer.disconnect();
   }, []);
+
+  // Reset isRendered when the PDF document changes so the page re-renders with
+  // the new content (without this, the old canvas is frozen once isRendered = true).
+  useEffect(() => {
+    setIsRendered(false);
+  }, [pdf]);
 
   useEffect(() => {
     if (!isVisible || isRendered || !canvasRef.current) return;

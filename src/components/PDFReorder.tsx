@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Dropzone } from './Dropzone';
 import { Button } from '@/components/ui/button';
 import { reorderPDFPages, downloadBlob, validatePDF, PDFError, generateFileName } from '@/lib/pdf-tools';
@@ -11,9 +11,10 @@ import { Reorder, motion, AnimatePresence } from 'motion/react';
 import { NamingOptions, NamingMode } from './NamingOptions';
 import { cn } from '@/lib/utils';
 import { generatePDFThumbnails } from '@/lib/pdf-thumbnails';
-import { PDFPreview } from './PDFPreview';
 
-export function PDFReorder() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [pageIndices, setPageIndices] = useState<number[]>([]);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
@@ -24,10 +25,21 @@ export function PDFReorder() {
   const [error, setError] = useState<string | null>(null);
   const [prefix, setPrefix] = useState('');
   const [namingMode, setNamingMode] = useState<NamingMode>('both');
-  
+
   // History for undo/redo
   const [history, setHistory] = useState<number[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Immediately rebuild the preview for a given page order.
+  const updatePreview = async (indices: number[], currentFile: File) => {
+    try {
+      const reorderedBytes = await reorderPDFPages(currentFile, indices);
+      setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
+    } catch {
+      // Silently ignore preview errors; user can still click the Preview button
+    }
+  };
 
   const handleFilesAdded = async (newFiles: File[]) => {
     const file = newFiles[0];
@@ -38,6 +50,7 @@ export function PDFReorder() {
     try {
       await validatePDF(file);
       setFiles([file]);
+      onPreviewChange?.(file);
       
       const bytes = await file.arrayBuffer();
       const pdf = await PDFDocument.load(bytes);
@@ -72,6 +85,7 @@ export function PDFReorder() {
     setHistoryIndex(-1);
     setPreviewBytes(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const commitHistory = () => {
@@ -83,6 +97,7 @@ export function PDFReorder() {
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
         setPreviewBytes(null);
+        if (files.length > 0) updatePreview(pageIndices, files[0]);
       }
     }
   };
@@ -91,8 +106,10 @@ export function PDFReorder() {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setPageIndices(history[newIndex]);
+      const newIndices = history[newIndex];
+      setPageIndices(newIndices);
       setPreviewBytes(null);
+      if (files.length > 0) updatePreview(newIndices, files[0]);
     }
   };
 
@@ -100,8 +117,10 @@ export function PDFReorder() {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setPageIndices(history[newIndex]);
+      const newIndices = history[newIndex];
+      setPageIndices(newIndices);
       setPreviewBytes(null);
+      if (files.length > 0) updatePreview(newIndices, files[0]);
     }
   };
 
@@ -112,6 +131,7 @@ export function PDFReorder() {
     try {
       const reorderedBytes = await reorderPDFPages(files[0], pageIndices);
       setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Failed to generate preview.";
       setError(message);
@@ -128,6 +148,10 @@ export function PDFReorder() {
     setError(null);
     try {
       const reorderedBytes = previewBytes || await reorderPDFPages(files[0], pageIndices);
+      // Always keep the preview in sync with the downloaded result
+      setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
+
       const fileName = generateFileName(namingMode, prefix, `reordered_${files[0].name.replace('.pdf', '')}`);
       
       // Save to history
@@ -296,16 +320,6 @@ export function PDFReorder() {
           </div>
         )}
 
-        {previewBytes && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pt-4"
-          >
-            <PDFPreview file={previewBytes} />
-          </motion.div>
-        )}
-        
         <div className="flex flex-col sm:flex-row justify-end pt-4 gap-4">
           <Button 
             variant="outline"

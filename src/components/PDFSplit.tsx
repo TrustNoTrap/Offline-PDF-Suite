@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'motion/react';
 import { NamingOptions, NamingMode } from './NamingOptions';
-import { PDFPreview } from './PDFPreview';
 
-export function PDFSplit() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFSplit({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [pageRange, setPageRange] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,7 +30,11 @@ export function PDFSplit() {
       for (const file of newFiles) {
         await validatePDF(file);
       }
-      setFiles((prev) => [...prev, ...newFiles]);
+      setFiles((prev) => {
+        const updated = [...prev, ...newFiles];
+        if (updated.length > 0) onPreviewChange?.(updated[0]);
+        return updated;
+      });
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Invalid PDF file.";
       setError(message);
@@ -38,7 +43,11 @@ export function PDFSplit() {
   };
 
   const handleRemoveFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      onPreviewChange?.(updated.length > 0 ? updated[0] : null);
+      return updated;
+    });
     setPreviewBytes(null);
   };
 
@@ -83,6 +92,7 @@ export function PDFSplit() {
       // Preview only the first file
       const splitBytes = await splitPDF(files[0], pageIndices);
       setPreviewBytes(splitBytes);
+      onPreviewChange?.(splitBytes);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Failed to generate preview.";
       setError(message);
@@ -115,6 +125,11 @@ export function PDFSplit() {
         const file = files[i];
         // Use previewBytes if it's the first file and we already generated it
         const splitBytes = (i === 0 && previewBytes) ? previewBytes : await splitPDF(file, pageIndices);
+        // Keep preview in sync with the first file's result
+        if (i === 0) {
+          setPreviewBytes(splitBytes);
+          onPreviewChange?.(splitBytes);
+        }
         const baseName = `split_${file.name.replace('.pdf', '')}`;
         const fileName = generateFileName(namingMode, prefix, baseName);
         
@@ -204,16 +219,6 @@ export function PDFSplit() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {previewBytes && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pt-4"
-          >
-            <PDFPreview file={previewBytes} />
-          </motion.div>
-        )}
 
         <div className="flex flex-col sm:flex-row justify-end pt-4 gap-4">
           <Button 

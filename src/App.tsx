@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { PDFMerge } from './components/PDFMerge';
@@ -11,9 +11,14 @@ import { PDFSplit } from './components/PDFSplit';
 import { PDFReorder } from './components/PDFReorder';
 import { ImageToPDF } from './components/ImageToPDF';
 import { PDFFill } from './components/PDFFill';
-// import { PDFOCR } from './components/PDFOCR';
+import { PDFEditor } from './components/PDFEditor';
 import { PDFHistory } from './components/PDFHistory';
+import { PDFCompress } from './components/PDFCompress';
+import { PDFWatermark } from './components/PDFWatermark';
+import { PDFToImages } from './components/PDFToImages';
+import { PDFPageNumbers } from './components/PDFPageNumbers';
 import { ModeToggle } from './components/ModeToggle';
+import { PDFSidePreview } from './components/PDFSidePreview';
 import { 
   FileStack, 
   Scissors, 
@@ -27,17 +32,31 @@ import {
   Lock,
   Globe, 
   FileText,
-  // Search,
+  FilePen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Minimize2,
+  Layers,
+  FileImage,
+  ListOrdered,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+type PreviewFile = File | Uint8Array | null;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("merge");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState<Record<string, PreviewFile>>({});
+
+  const makePreviewHandler = useCallback(
+    (toolId: string) => (file: PreviewFile) => {
+      setPreviewFiles((prev) => ({ ...prev, [toolId]: file }));
+    },
+    []
+  );
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {
@@ -67,13 +86,18 @@ export default function App() {
   //    - `activeClass`: Tailwind classes for the active tab state (color theming).
   // ============================================================================
   const tools = [
-    { id: "merge", label: "Merge", icon: FileStack, component: PDFMerge, activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
-    { id: "split", label: "Split", icon: Scissors, component: PDFSplit, activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
-    { id: "reorder", label: "Reorder", icon: MoveVertical, component: PDFReorder, activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
-    { id: "fill", label: "Fill & Sign", icon: PenTool, component: PDFFill, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
-    { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
+    { id: "merge",       label: "Merge",        icon: FileStack,    component: PDFMerge,       activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
+    { id: "split",       label: "Split",        icon: Scissors,     component: PDFSplit,       activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
+    { id: "reorder",     label: "Reorder",      icon: MoveVertical, component: PDFReorder,     activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
+    { id: "edit",        label: "Edit PDF",     icon: FilePen,      component: PDFEditor,      activeClass: "data-active:!bg-rose-500/10 data-active:!text-rose-500" },
+    { id: "fill",        label: "Fill & Sign",  icon: PenTool,      component: PDFFill,        activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
+    { id: "image",       label: "Image to PDF", icon: ImageIcon,    component: ImageToPDF,     activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
+    { id: "compress",    label: "Compress",     icon: Minimize2,    component: PDFCompress,    activeClass: "data-active:!bg-indigo-500/10 data-active:!text-indigo-500" },
+    { id: "watermark",   label: "Watermark",    icon: Layers,       component: PDFWatermark,   activeClass: "data-active:!bg-violet-500/10 data-active:!text-violet-500" },
+    { id: "export",      label: "PDF to Images",icon: FileImage,    component: PDFToImages,    activeClass: "data-active:!bg-teal-500/10 data-active:!text-teal-500" },
+    { id: "pagenumbers", label: "Page Numbers", icon: ListOrdered,  component: PDFPageNumbers, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
     // { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
-    { id: "history", label: "History", icon: History, component: PDFHistory, activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
+    { id: "history",     label: "History",      icon: History,      component: PDFHistory,     activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
   ];
 
   const scrollToTop = () => {
@@ -109,7 +133,7 @@ export default function App() {
 
       <main className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
-        <section className="max-w-4xl mx-auto text-center mb-20">
+        <section className="max-w-4xl mx-auto text-center mb-14">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -119,18 +143,18 @@ export default function App() {
               <Zap className="w-4 h-4" />
               <span>100% Client-Side Processing</span>
             </div>
-            <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1]">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-[1.1]">
               Professional PDF tools, <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">completely offline.</span>
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
-              Merge, split, and reorder PDF pages with military-grade privacy. Your files never leave your device.
+            <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
+              Edit, merge, split, compress, watermark, reorder and sign PDFs with full privacy. Your files never leave your device.
             </p>
           </motion.div>
         </section>
 
         {/* Tools Interface */}
-        <section className="max-w-5xl mx-auto">
+        <section>
           <Tabs defaultValue="merge" onValueChange={setActiveTab} className="w-full">
             <div className="relative w-full max-w-full flex items-center justify-center mb-12">
               {canScrollLeft && (
@@ -147,16 +171,16 @@ export default function App() {
               <TabsList 
                 ref={scrollContainerRef}
                 onScroll={checkScroll}
-                className="!h-auto p-3 lg:p-4 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] shadow-xl flex-nowrap lg:flex-wrap justify-start lg:justify-center gap-2 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-w-full w-full lg:w-auto items-center scroll-smooth"
+                className="!h-auto p-3 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] shadow-xl flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-w-full w-full items-center scroll-smooth"
               >
                 {tools.map((tool) => (
                   <TabsTrigger 
                     key={tool.id} 
                     value={tool.id}
-                    className={`!h-14 lg:!h-12 rounded-full px-6 transition-all font-bold text-base shrink-0 data-active:shadow-lg ${tool.activeClass}`}
+                    className={`!h-12 rounded-full px-5 transition-all font-bold text-sm shrink-0 data-active:shadow-lg ${tool.activeClass}`}
                   >
-                    <tool.icon className="w-6 h-6 lg:w-4 lg:h-4 lg:mr-2" />
-                    <span className="hidden lg:inline">{tool.label}</span>
+                    <tool.icon className="w-4 h-4 mr-2" />
+                    <span>{tool.label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -173,21 +197,30 @@ export default function App() {
               )}
             </div>
 
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-black/5"
-            >
-              <AnimatePresence mode="wait">
-                {tools.map((tool) => (
-                  <TabsContent key={tool.id} value={tool.id} className="mt-0 focus-visible:outline-none">
-                    <tool.component />
-                  </TabsContent>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+            {/* Two-pane layout: tool on the left, live preview on the right */}
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+              {/* Tool panel */}
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="min-w-0 flex-1 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-black/5"
+              >
+                <AnimatePresence mode="wait">
+                  {tools.map((tool) => (
+                    <TabsContent key={tool.id} value={tool.id} className="mt-0 focus-visible:outline-none">
+                      <tool.component onPreviewChange={makePreviewHandler(tool.id)} />
+                    </TabsContent>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Live preview panel — always visible */}
+              <div className="w-full xl:w-[400px] xl:shrink-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)]">
+                <PDFSidePreview file={previewFiles[activeTab] ?? null} />
+              </div>
+            </div>
           </Tabs>
         </section>
 
@@ -197,7 +230,7 @@ export default function App() {
             <h2 className="text-4xl font-black tracking-tight mb-4">Why use PDFSuite?</h2>
             <p className="text-muted-foreground text-lg font-medium">The most secure way to handle your documents.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="p-8 rounded-[2rem] bg-white dark:bg-white/5 border dark:border-white/10 hover:shadow-xl transition-all group">
               <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Lock className="w-7 h-7" />
@@ -223,6 +256,15 @@ export default function App() {
               <h3 className="text-2xl font-bold mb-4">Works Offline</h3>
               <p className="text-muted-foreground leading-relaxed font-medium">
                 Once loaded, the app works without an internet connection. Perfect for secure environments.
+              </p>
+            </div>
+            <div className="p-8 rounded-[2rem] bg-white dark:bg-white/5 border dark:border-white/10 hover:shadow-xl transition-all group">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <FilePen className="w-7 h-7" />
+              </div>
+              <h3 className="text-2xl font-bold mb-4">Full PDF Editor</h3>
+              <p className="text-muted-foreground leading-relaxed font-medium">
+                Delete, insert, rotate, duplicate and reorder pages — plus fill forms and add signatures, all in one suite.
               </p>
             </div>
           </div>

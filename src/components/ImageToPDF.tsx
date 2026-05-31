@@ -8,9 +8,10 @@ import { Image as ImageIcon, Loader2, Download, AlertCircle, Eye } from 'lucide-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'motion/react';
 import { NamingOptions, NamingMode } from './NamingOptions';
-import { PDFPreview } from './PDFPreview';
 
-export function ImageToPDF() {
+type PreviewFile = File | Uint8Array | null;
+
+export function ImageToPDF({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -37,6 +38,7 @@ export function ImageToPDF() {
   const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
     setPreviewBytes(null);
+    onPreviewChange?.(null);
   };
 
   const handlePreview = async () => {
@@ -46,6 +48,7 @@ export function ImageToPDF() {
     try {
       const pdfBytes = await imagesToPDF(files);
       setPreviewBytes(pdfBytes);
+      onPreviewChange?.(pdfBytes);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Failed to generate preview.";
       setError(message);
@@ -65,6 +68,10 @@ export function ImageToPDF() {
     setError(null);
     try {
       const pdfBytes = previewBytes || await imagesToPDF(files);
+      // Always update the preview with the converted result
+      setPreviewBytes(pdfBytes);
+      onPreviewChange?.(pdfBytes);
+
       const fileName = generateFileName(namingMode, prefix, 'images');
       
       // Save to history
@@ -136,16 +143,6 @@ export function ImageToPDF() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {previewBytes && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pt-4"
-          >
-            <PDFPreview file={previewBytes} />
-          </motion.div>
-        )}
 
         <div className="flex flex-col sm:flex-row justify-end pt-4 gap-4">
           <Button 

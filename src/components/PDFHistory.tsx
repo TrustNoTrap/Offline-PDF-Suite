@@ -16,10 +16,15 @@ import {
   MoveVertical,
   Image as ImageIcon,
   SearchCode,
+  FilePen,
   ChevronLeft,
   ChevronRight,
   HardDrive,
-  ArrowUpDown
+  ArrowUpDown,
+  Minimize2,
+  Layers,
+  FileImage,
+  ListOrdered,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,7 +35,7 @@ import { Badge } from '@/components/ui/badge';
 
 const ITEMS_PER_PAGE = 5;
 
-export function PDFHistory() {
+export function PDFHistory(_props?: { onPreviewChange?: (file: File | Uint8Array | null) => void }) {
   const [history, setHistory] = useState<PDFHistoryItem[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -122,23 +127,33 @@ export function PDFHistory() {
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'merge': return <FileStack className="w-6 h-6" />;
-      case 'split': return <Scissors className="w-6 h-6" />;
-      case 'reorder': return <MoveVertical className="w-6 h-6" />;
+      case 'merge':        return <FileStack className="w-6 h-6" />;
+      case 'split':        return <Scissors className="w-6 h-6" />;
+      case 'reorder':      return <MoveVertical className="w-6 h-6" />;
       case 'image-to-pdf': return <ImageIcon className="w-6 h-6" />;
-      case 'ocr': return <SearchCode className="w-6 h-6" />;
-      default: return <FileText className="w-6 h-6" />;
+      case 'ocr':          return <SearchCode className="w-6 h-6" />;
+      case 'edit':         return <FilePen className="w-6 h-6" />;
+      case 'compress':     return <Minimize2 className="w-6 h-6" />;
+      case 'watermark':    return <Layers className="w-6 h-6" />;
+      case 'pdf-to-images':return <FileImage className="w-6 h-6" />;
+      case 'page-numbers': return <ListOrdered className="w-6 h-6" />;
+      default:             return <FileText className="w-6 h-6" />;
     }
   };
 
   const getBadgeColor = (type: string) => {
     switch (type) {
-      case 'merge': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-      case 'split': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
-      case 'reorder': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
+      case 'merge':        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'split':        return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
+      case 'reorder':      return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
       case 'image-to-pdf': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      case 'ocr': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+      case 'ocr':          return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'edit':         return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'compress':     return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+      case 'watermark':    return 'bg-violet-500/10 text-violet-500 border-violet-500/20';
+      case 'pdf-to-images':return 'bg-teal-500/10 text-teal-500 border-teal-500/20';
+      case 'page-numbers': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      default:             return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     }
   };
 

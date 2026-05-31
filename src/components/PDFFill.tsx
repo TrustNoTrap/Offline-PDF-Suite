@@ -57,13 +57,18 @@ const COLORS = [
   { name: 'Green', value: '#008000' },
 ];
 
-export function PDFFill() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
+
+  // Cached result bytes; cleared whenever annotations change, reused on download
+  const [cachedResultBytes, setCachedResultBytes] = useState<Uint8Array | null>(null);
   
   const [selectedTool, setSelectedTool] = useState<AnnotationType>('text');
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
@@ -118,6 +123,8 @@ export function PDFFill() {
     setPast(prev => [...prev, annotationsRef.current]);
     setFuture([]);
     setAnnotations(newAnnotations);
+    // Invalidate the cached result whenever annotations change
+    setCachedResultBytes(null);
   }, []);
 
   const undo = useCallback(() => {
@@ -174,9 +181,11 @@ export function PDFFill() {
     if (files.length === 0) return;
     const selectedFile = files[0];
     setFile(selectedFile);
+    onPreviewChange?.(selectedFile);
     setAnnotations([]);
     setPast([]);
     setFuture([]);
+    setCachedResultBytes(null);
     setCurrentPage(1);
     
     try {
@@ -272,7 +281,12 @@ export function PDFFill() {
         fontWeight: a.fontWeight
       }));
 
-      const resultBytes = await fillPDF(file, {}, processedAnnotations);
+      // Reuse the cached result to avoid reprocessing if annotations haven't changed
+      const resultBytes = cachedResultBytes || await fillPDF(file, {}, processedAnnotations);
+      // Cache the result and update the preview
+      setCachedResultBytes(resultBytes);
+      onPreviewChange?.(resultBytes);
+
       const fileName = generateFileName('both', 'filled', file.name);
       
       const blob = new Blob([resultBytes], { type: 'application/pdf' });
@@ -491,7 +505,7 @@ export function PDFFill() {
                 Save PDF
               </Button>
               
-              <Button variant="outline" size="icon" className="rounded-full" onClick={() => setFile(null)}>
+              <Button variant="outline" size="icon" className="rounded-full" onClick={() => { setFile(null); onPreviewChange?.(null); }}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
