@@ -66,6 +66,12 @@ async function renderPageThumbnail(
 type PreviewFile = File | Uint8Array | null;
 
 export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
+  // Keep a ref so the auto-preview effect never needs onPreviewChange in its
+  // dependency array.  Without this, a new function reference from the parent
+  // on every render would re-trigger the effect and cause infinite blinking.
+  const onPreviewChangeRef = useRef(onPreviewChange);
+  useEffect(() => { onPreviewChangeRef.current = onPreviewChange; }, [onPreviewChange]);
+
   const [file, setFile] = useState<File | null>(null);
   const [pages, setPages] = useState<InternalPage[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -154,7 +160,7 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
         const resultBytes = await buildEditedPDF(targetFile, targetPages);
         if (cancelled) return;
         setCachedResultBytes(resultBytes);
-        onPreviewChange?.(resultBytes);
+        onPreviewChangeRef.current?.(resultBytes);
       } catch {
         // Silently ignore auto-preview errors; the user can still save manually
       }
@@ -163,7 +169,7 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     return () => {
       cancelled = true;
     };
-  }, [pages, file, isLoadingPages, onPreviewChange]);
+  }, [pages, file, isLoadingPages]);
 
   // ── load PDF ─────────────────────────────────────────────────────────────────
   const handleFilesAdded = async (newFiles: File[]) => {
