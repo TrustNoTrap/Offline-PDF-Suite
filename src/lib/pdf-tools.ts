@@ -501,6 +501,11 @@ export async function buildEditedPDF(
   }
 }
 
+// Minimum milliseconds to wait before revoking the object URL used for a download.
+// Some browsers (e.g. older Firefox) revoke the data before the download starts if
+// revokeObjectURL is called synchronously, resulting in an empty file.
+const DOWNLOAD_CLEANUP_DELAY_MS = 150;
+
 /**
  * Helper to download a Uint8Array as a file.
  */
@@ -517,7 +522,7 @@ export function downloadBlob(data: Uint8Array | Blob, fileName: string, mimeType
   setTimeout(() => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-  }, 150);
+  }, DOWNLOAD_CLEANUP_DELAY_MS);
 }
 
 /**
