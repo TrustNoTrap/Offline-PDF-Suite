@@ -81,6 +81,10 @@ export function PDFEditor() {
   const insertFileRef = useRef<HTMLInputElement>(null);
   const insertAfterIdRef = useRef<string | null>(null);
 
+  // Ref that always holds the latest keyboard handler to avoid stale closures
+  // while keeping the event listener registration stable (empty deps array).
+  const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+
   // ── commit a new page state and push to undo stack ──────────────────────────
   const commit = useCallback(
     (newPages: InternalPage[], prevPages: InternalPage[]) => {
@@ -108,21 +112,24 @@ export function PDFEditor() {
   };
 
   // ── keyboard shortcuts ───────────────────────────────────────────────────────
+  // Keep the latest handler in a ref so the event listener never goes stale
+  // without needing to re-register on every state change.
+  onKeyRef.current = (e: KeyboardEvent) => {
+    if (!file) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key === 'z') { e.preventDefault(); undo(); }
+    if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+      e.preventDefault();
+      deleteSelected();
+    }
+  };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!file) return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key === 'z') { e.preventDefault(); undo(); }
-      if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
-        e.preventDefault();
-        deleteSelected();
-      }
-    };
+    const onKey = (e: KeyboardEvent) => onKeyRef.current(e);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, pages, undoStack, redoStack, selectedIds]);
+  }, []);
 
   // ── load PDF ─────────────────────────────────────────────────────────────────
   const handleFilesAdded = async (newFiles: File[]) => {
@@ -369,7 +376,7 @@ export function PDFEditor() {
         {isLoadingPages && (
           <div className="flex flex-col items-center justify-center py-16 space-y-4">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="text-muted-foreground font-medium">Analysing PDF…</p>
+            <p className="text-muted-foreground font-medium">Analyzing PDF…</p>
           </div>
         )}
 
