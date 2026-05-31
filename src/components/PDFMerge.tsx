@@ -88,6 +88,10 @@ export function PDFMerge({ onPreviewChange }: { onPreviewChange?: (file: Preview
     try {
       // Use cached preview if available, otherwise process
       const mergedBytes = previewBytes || await mergePDFs(files, compress);
+      // Always update the preview with the final merged result
+      setPreviewBytes(mergedBytes);
+      onPreviewChange?.(mergedBytes);
+
       const baseName = files.length > 0 ? files[0].name : 'merged';
       const fileName = generateFileName(namingMode, prefix, baseName);
       

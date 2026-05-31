@@ -66,6 +66,9 @@ export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewF
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
+
+  // Cached result bytes; cleared whenever annotations change, reused on download
+  const [cachedResultBytes, setCachedResultBytes] = useState<Uint8Array | null>(null);
   
   const [selectedTool, setSelectedTool] = useState<AnnotationType>('text');
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
@@ -120,6 +123,8 @@ export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewF
     setPast(prev => [...prev, annotationsRef.current]);
     setFuture([]);
     setAnnotations(newAnnotations);
+    // Invalidate the cached result whenever annotations change
+    setCachedResultBytes(null);
   }, []);
 
   const undo = useCallback(() => {
@@ -180,6 +185,7 @@ export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewF
     setAnnotations([]);
     setPast([]);
     setFuture([]);
+    setCachedResultBytes(null);
     setCurrentPage(1);
     
     try {
@@ -275,8 +281,12 @@ export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewF
         fontWeight: a.fontWeight
       }));
 
-      const resultBytes = await fillPDF(file, {}, processedAnnotations);
+      // Reuse the cached result to avoid reprocessing if annotations haven't changed
+      const resultBytes = cachedResultBytes || await fillPDF(file, {}, processedAnnotations);
+      // Cache the result and update the preview
+      setCachedResultBytes(resultBytes);
       onPreviewChange?.(resultBytes);
+
       const fileName = generateFileName('both', 'filled', file.name);
       
       const blob = new Blob([resultBytes], { type: 'application/pdf' });

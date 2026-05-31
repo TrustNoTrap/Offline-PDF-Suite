@@ -68,6 +68,10 @@ export function ImageToPDF({ onPreviewChange }: { onPreviewChange?: (file: Previ
     setError(null);
     try {
       const pdfBytes = previewBytes || await imagesToPDF(files);
+      // Always update the preview with the converted result
+      setPreviewBytes(pdfBytes);
+      onPreviewChange?.(pdfBytes);
+
       const fileName = generateFileName(namingMode, prefix, 'images');
       
       // Save to history

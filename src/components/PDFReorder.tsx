@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dropzone } from './Dropzone';
 import { Button } from '@/components/ui/button';
 import { reorderPDFPages, downloadBlob, validatePDF, PDFError, generateFileName } from '@/lib/pdf-tools';
@@ -25,6 +25,12 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
   const [error, setError] = useState<string | null>(null);
   const [prefix, setPrefix] = useState('');
   const [namingMode, setNamingMode] = useState<NamingMode>('both');
+
+  // Tracks whether the user has interacted with the page order (to avoid triggering
+  // auto-preview on the initial file load).
+  const hasReorderedRef = useRef(false);
+  // Debounce timer for auto-preview generation after a drag-and-drop reorder.
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // History for undo/redo
   const [history, setHistory] = useState<number[][]>([]);
@@ -35,6 +41,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     setError(null);
     setPreviewBytes(null);
     setIsLoadingPages(true);
+    hasReorderedRef.current = false;
     
     try {
       await validatePDF(file);
@@ -67,6 +74,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
   };
 
   const handleRemoveFile = () => {
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     setFiles([]);
     setPageIndices([]);
     setThumbnails([]);
@@ -74,6 +82,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     setHistoryIndex(-1);
     setPreviewBytes(null);
     setError(null);
+    hasReorderedRef.current = false;
     onPreviewChange?.(null);
   };
 
@@ -86,6 +95,8 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
         setPreviewBytes(null);
+        // Mark that the user has reordered at least once so auto-preview can fire
+        hasReorderedRef.current = true;
       }
     }
   };
@@ -96,6 +107,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
       setHistoryIndex(newIndex);
       setPageIndices(history[newIndex]);
       setPreviewBytes(null);
+      hasReorderedRef.current = true;
     }
   };
 
@@ -105,8 +117,30 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
       setHistoryIndex(newIndex);
       setPageIndices(history[newIndex]);
       setPreviewBytes(null);
+      hasReorderedRef.current = true;
     }
   };
+
+  // Auto-update the preview a short time after the user finishes reordering pages.
+  // Uses a debounce so rapid successive drags don't trigger multiple rebuilds.
+  useEffect(() => {
+    if (!hasReorderedRef.current || files.length === 0 || pageIndices.length === 0) return;
+
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    previewDebounceRef.current = setTimeout(async () => {
+      try {
+        const reorderedBytes = await reorderPDFPages(files[0], pageIndices);
+        setPreviewBytes(reorderedBytes);
+        onPreviewChange?.(reorderedBytes);
+      } catch {
+        // Silently ignore auto-preview errors; user can still click the Preview button
+      }
+    }, 800);
+
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    };
+  }, [pageIndices, files]);
 
   const handlePreview = async () => {
     if (files.length === 0) return;
@@ -132,6 +166,10 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     setError(null);
     try {
       const reorderedBytes = previewBytes || await reorderPDFPages(files[0], pageIndices);
+      // Always keep the preview in sync with the downloaded result
+      setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
+
       const fileName = generateFileName(namingMode, prefix, `reordered_${files[0].name.replace('.pdf', '')}`);
       
       // Save to history

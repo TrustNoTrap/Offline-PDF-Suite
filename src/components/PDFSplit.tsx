@@ -125,6 +125,11 @@ export function PDFSplit({ onPreviewChange }: { onPreviewChange?: (file: Preview
         const file = files[i];
         // Use previewBytes if it's the first file and we already generated it
         const splitBytes = (i === 0 && previewBytes) ? previewBytes : await splitPDF(file, pageIndices);
+        // Keep preview in sync with the first file's result
+        if (i === 0) {
+          setPreviewBytes(splitBytes);
+          onPreviewChange?.(splitBytes);
+        }
         const baseName = `split_${file.name.replace('.pdf', '')}`;
         const fileName = generateFileName(namingMode, prefix, baseName);
         

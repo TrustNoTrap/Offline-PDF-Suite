@@ -75,6 +75,9 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
   const [prefix, setPrefix] = useState('');
   const [namingMode, setNamingMode] = useState<NamingMode>('both');
 
+  // Cached result bytes: cleared whenever pages are mutated, reused on download
+  const [cachedResultBytes, setCachedResultBytes] = useState<Uint8Array | null>(null);
+
   // undo / redo
   const [undoStack, setUndoStack] = useState<InternalPage[][]>([]);
   const [redoStack, setRedoStack] = useState<InternalPage[][]>([]);
@@ -87,12 +90,19 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
   // while keeping the event listener registration stable (empty deps array).
   const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
 
+  // Debounce timer for auto-preview after each page edit
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track the file used to build the auto-preview so stale results are discarded
+  const previewFileRef = useRef<File | null>(null);
+
   // ── commit a new page state and push to undo stack ──────────────────────────
   const commit = useCallback(
     (newPages: InternalPage[], prevPages: InternalPage[]) => {
       setPages(newPages);
       setUndoStack((s: InternalPage[][]) => [...s, prevPages]);
       setRedoStack([]);
+      // Invalidate the cached download result whenever the page structure changes
+      setCachedResultBytes(null);
     },
     []
   );
@@ -133,11 +143,40 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── auto-preview after every page edit (debounced) ───────────────────────────
+  // Re-renders the side preview 1 second after the user stops making changes.
+  // Uses the cached result when available so the download can reuse it.
+  useEffect(() => {
+    if (!file || pages.length === 0 || isLoadingPages) return;
+
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    const targetFile = file;
+    previewFileRef.current = targetFile;
+
+    previewDebounceRef.current = setTimeout(async () => {
+      try {
+        const resultBytes = await buildEditedPDF(targetFile, pages);
+        // Discard if the file changed while we were processing
+        if (previewFileRef.current !== targetFile) return;
+        setCachedResultBytes(resultBytes);
+        onPreviewChange?.(resultBytes);
+      } catch {
+        // Silently ignore auto-preview errors; the user can still save manually
+      }
+    }, 1000);
+
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    };
+  }, [pages, file, isLoadingPages]);
+
   // ── load PDF ─────────────────────────────────────────────────────────────────
   const handleFilesAdded = async (newFiles: File[]) => {
     const f = newFiles[0];
     setError(null);
     setIsLoadingPages(true);
+    setCachedResultBytes(null);
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     try {
       await validatePDF(f);
       setFile(f);
@@ -175,11 +214,13 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
   };
 
   const handleRemoveFile = () => {
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     setFile(null);
     setPages([]);
     setSelectedIds(new Set());
     setUndoStack([]);
     setRedoStack([]);
+    setCachedResultBytes(null);
     setError(null);
     onPreviewChange?.(null);
   };
@@ -323,7 +364,10 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     setIsProcessing(true);
     setError(null);
     try {
-      const resultBytes = await buildEditedPDF(file, pages);
+      // Reuse the auto-preview cached bytes when available to avoid rebuilding
+      const resultBytes = cachedResultBytes || await buildEditedPDF(file, pages);
+      // Ensure the cache is populated and the preview reflects the saved result
+      setCachedResultBytes(resultBytes);
       onPreviewChange?.(resultBytes);
       const fileName = generateFileName(namingMode, prefix, `edited_${file.name.replace(/\.pdf$/i, '')}`);
       const blob = new Blob([resultBytes as unknown as BlobPart], { type: 'application/pdf' });
