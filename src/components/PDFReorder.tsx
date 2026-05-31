@@ -140,7 +140,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     };
-  }, [pageIndices, files]);
+  }, [pageIndices, files, onPreviewChange]);
 
   const handlePreview = async () => {
     if (files.length === 0) return;

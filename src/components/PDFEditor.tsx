@@ -168,7 +168,7 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     };
-  }, [pages, file, isLoadingPages]);
+  }, [pages, file, isLoadingPages, onPreviewChange]);
 
   // ── load PDF ─────────────────────────────────────────────────────────────────
   const handleFilesAdded = async (newFiles: File[]) => {
