@@ -90,11 +90,6 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
   // while keeping the event listener registration stable (empty deps array).
   const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
 
-  // Debounce timer for auto-preview after each page edit
-  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track the file used to build the auto-preview so stale results are discarded
-  const previewFileRef = useRef<File | null>(null);
-
   // ── commit a new page state and push to undo stack ──────────────────────────
   const commit = useCallback(
     (newPages: InternalPage[], prevPages: InternalPage[]) => {
@@ -143,30 +138,30 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // ── auto-preview after every page edit (debounced) ───────────────────────────
-  // Re-renders the side preview 1 second after the user stops making changes.
-  // Uses the cached result when available so the download can reuse it.
+  // ── auto-preview after every page edit ───────────────────────────────────────
+  // Starts a preview build immediately after each page change.  The cleanup
+  // function sets a `cancelled` flag so that any in-flight build whose result
+  // arrives after a newer change has already started is silently discarded.
   useEffect(() => {
     if (!file || pages.length === 0 || isLoadingPages) return;
 
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    let cancelled = false;
     const targetFile = file;
-    previewFileRef.current = targetFile;
+    const targetPages = pages;
 
-    previewDebounceRef.current = setTimeout(async () => {
+    (async () => {
       try {
-        const resultBytes = await buildEditedPDF(targetFile, pages);
-        // Discard if the file changed while we were processing
-        if (previewFileRef.current !== targetFile) return;
+        const resultBytes = await buildEditedPDF(targetFile, targetPages);
+        if (cancelled) return;
         setCachedResultBytes(resultBytes);
         onPreviewChange?.(resultBytes);
       } catch {
         // Silently ignore auto-preview errors; the user can still save manually
       }
-    }, 1000);
+    })();
 
     return () => {
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+      cancelled = true;
     };
   }, [pages, file, isLoadingPages, onPreviewChange]);
 
@@ -176,7 +171,6 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
     setError(null);
     setIsLoadingPages(true);
     setCachedResultBytes(null);
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     try {
       await validatePDF(f);
       setFile(f);
@@ -214,7 +208,6 @@ export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: Previe
   };
 
   const handleRemoveFile = () => {
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     setFile(null);
     setPages([]);
     setSelectedIds(new Set());

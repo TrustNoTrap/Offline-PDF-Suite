@@ -20,7 +20,9 @@ export function PDFPreview({ file }: PDFPreviewProps) {
       try {
         let data: Uint8Array | ArrayBuffer;
         if (file instanceof Uint8Array) {
-          data = file;
+          // Use a copy so that pdf.js's worker-transfer does not detach the
+          // original Uint8Array (callers may still need it for downloads).
+          data = file.slice();
         } else {
           data = await file.arrayBuffer();
         }

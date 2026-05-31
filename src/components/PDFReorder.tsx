@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Dropzone } from './Dropzone';
 import { Button } from '@/components/ui/button';
 import { reorderPDFPages, downloadBlob, validatePDF, PDFError, generateFileName } from '@/lib/pdf-tools';
@@ -26,25 +26,26 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
   const [prefix, setPrefix] = useState('');
   const [namingMode, setNamingMode] = useState<NamingMode>('both');
 
-  // Tracks whether the user has interacted with the page order (to avoid triggering
-  // auto-preview on the initial file load).
-  const hasReorderedRef = useRef(false);
-  // Incremented by commitHistory so the auto-preview effect re-runs after a drag-end
-  // even though pageIndices itself didn't change after onReorder already updated it.
-  const [previewUpdateTick, setPreviewUpdateTick] = useState(0);
-  // Debounce timer for auto-preview generation after a drag-and-drop reorder.
-  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
   // History for undo/redo
   const [history, setHistory] = useState<number[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Immediately rebuild the preview for a given page order.
+  const updatePreview = async (indices: number[], currentFile: File) => {
+    try {
+      const reorderedBytes = await reorderPDFPages(currentFile, indices);
+      setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
+    } catch {
+      // Silently ignore preview errors; user can still click the Preview button
+    }
+  };
 
   const handleFilesAdded = async (newFiles: File[]) => {
     const file = newFiles[0];
     setError(null);
     setPreviewBytes(null);
     setIsLoadingPages(true);
-    hasReorderedRef.current = false;
     
     try {
       await validatePDF(file);
@@ -77,7 +78,6 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
   };
 
   const handleRemoveFile = () => {
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     setFiles([]);
     setPageIndices([]);
     setThumbnails([]);
@@ -85,7 +85,6 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     setHistoryIndex(-1);
     setPreviewBytes(null);
     setError(null);
-    hasReorderedRef.current = false;
     onPreviewChange?.(null);
   };
 
@@ -98,11 +97,7 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
         setPreviewBytes(null);
-        // Mark that the user has reordered at least once so auto-preview can fire
-        hasReorderedRef.current = true;
-        // Bump tick so the auto-preview useEffect re-runs even though pageIndices
-        // was already updated during the drag (by onReorder) before this callback fires.
-        setPreviewUpdateTick((t) => t + 1);
+        if (files.length > 0) updatePreview(pageIndices, files[0]);
       }
     }
   };
@@ -111,9 +106,10 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setPageIndices(history[newIndex]);
+      const newIndices = history[newIndex];
+      setPageIndices(newIndices);
       setPreviewBytes(null);
-      hasReorderedRef.current = true;
+      if (files.length > 0) updatePreview(newIndices, files[0]);
     }
   };
 
@@ -121,32 +117,12 @@ export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: Previ
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setPageIndices(history[newIndex]);
+      const newIndices = history[newIndex];
+      setPageIndices(newIndices);
       setPreviewBytes(null);
-      hasReorderedRef.current = true;
+      if (files.length > 0) updatePreview(newIndices, files[0]);
     }
   };
-
-  // Auto-update the preview a short time after the user finishes reordering pages.
-  // Uses a debounce so rapid successive drags don't trigger multiple rebuilds.
-  useEffect(() => {
-    if (!hasReorderedRef.current || files.length === 0 || pageIndices.length === 0) return;
-
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-    previewDebounceRef.current = setTimeout(async () => {
-      try {
-        const reorderedBytes = await reorderPDFPages(files[0], pageIndices);
-        setPreviewBytes(reorderedBytes);
-        onPreviewChange?.(reorderedBytes);
-      } catch {
-        // Silently ignore auto-preview errors; user can still click the Preview button
-      }
-    }, 800);
-
-    return () => {
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-    };
-  }, [pageIndices, previewUpdateTick, files, onPreviewChange]);
 
   const handlePreview = async () => {
     if (files.length === 0) return;
