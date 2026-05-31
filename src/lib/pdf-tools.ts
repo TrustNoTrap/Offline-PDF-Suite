@@ -532,3 +532,131 @@ export function generateFileName(mode: 'timestamp' | 'prefix' | 'both' | 'origin
     default: return `${base}_${timestamp}.pdf`;
   }
 }
+
+/**
+ * Compresses a PDF by re-saving with object stream optimization.
+ * Works best on unoptimized PDFs; savings vary by source document.
+ */
+export async function compressPDF(pdfFile: File): Promise<Uint8Array> {
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    return await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to compress PDF.', 'COMPRESS_FAILED');
+  }
+}
+
+export interface WatermarkOptions {
+  text: string;
+  fontSize: number;
+  opacity: number;
+  /** RGB channels in the range 0–1 */
+  color: [number, number, number];
+  /** Rotation in degrees (counter-clockwise) */
+  rotation: number;
+}
+
+/**
+ * Adds a text watermark centered on every page of a PDF.
+ * The watermark position is calculated so the text center aligns with the page center
+ * regardless of the rotation angle.
+ */
+export async function watermarkPDF(pdfFile: File, options: WatermarkOptions): Promise<Uint8Array> {
+  const { text, fontSize, opacity, color, rotation } = options;
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    for (const page of pdfDoc.getPages()) {
+      const { width, height } = page.getSize();
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+
+      // Compute the draw origin so the visual center of the rotated text
+      // lands on the page center.
+      const rad = (rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const x = width / 2 - (textWidth / 2) * cos + (fontSize / 2) * sin;
+      const y = height / 2 - (textWidth / 2) * sin - (fontSize / 2) * cos;
+
+      page.drawText(text, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color: rgb(color[0], color[1], color[2]),
+        opacity,
+        rotate: degrees(rotation),
+      });
+    }
+
+    return await pdfDoc.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to add watermark to PDF.', 'WATERMARK_FAILED');
+  }
+}
+
+export interface PageNumberOptions {
+  position: 'bottom-left' | 'bottom-center' | 'bottom-right' | 'top-left' | 'top-center' | 'top-right';
+  format: 'number' | 'number-of-total' | 'page-number' | 'page-number-of-total';
+  startNumber: number;
+  fontSize: number;
+  /** Distance from the nearest edge in points */
+  margin: number;
+  /** RGB channels in the range 0–1; defaults to black */
+  color?: [number, number, number];
+}
+
+/**
+ * Adds page numbers to every page of a PDF.
+ */
+export async function addPageNumbers(pdfFile: File, options: PageNumberOptions): Promise<Uint8Array> {
+  const { position, format, startNumber, fontSize, margin, color = [0, 0, 0] } = options;
+  try {
+    const pdfBytes = await pdfFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pages = pdfDoc.getPages();
+    const total = pages.length;
+
+    pages.forEach((page, i) => {
+      const { width, height } = page.getSize();
+      const pageNum = startNumber + i;
+
+      let text: string;
+      switch (format) {
+        case 'number':               text = `${pageNum}`; break;
+        case 'number-of-total':      text = `${pageNum} / ${total}`; break;
+        case 'page-number':          text = `Page ${pageNum}`; break;
+        case 'page-number-of-total': text = `Page ${pageNum} of ${total}`; break;
+        default:                     text = `${pageNum}`;
+      }
+
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const isBottom = position.startsWith('bottom');
+      const y = isBottom ? margin : height - margin - fontSize;
+
+      let x: number;
+      if (position.endsWith('left'))       x = margin;
+      else if (position.endsWith('right'))  x = width - textWidth - margin;
+      else                                  x = (width - textWidth) / 2; // center
+
+      page.drawText(text, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color: rgb(color[0], color[1], color[2]),
+      });
+    });
+
+    return await pdfDoc.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to add page numbers to PDF.', 'PAGE_NUMBERS_FAILED');
+  }
+}

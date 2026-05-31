@@ -13,6 +13,10 @@ import { ImageToPDF } from './components/ImageToPDF';
 import { PDFFill } from './components/PDFFill';
 import { PDFEditor } from './components/PDFEditor';
 import { PDFHistory } from './components/PDFHistory';
+import { PDFCompress } from './components/PDFCompress';
+import { PDFWatermark } from './components/PDFWatermark';
+import { PDFToImages } from './components/PDFToImages';
+import { PDFPageNumbers } from './components/PDFPageNumbers';
 import { ModeToggle } from './components/ModeToggle';
 import { 
   FileStack, 
@@ -28,9 +32,12 @@ import {
   Globe, 
   FileText,
   FilePen,
-  // Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Minimize2,
+  Layers,
+  FileImage,
+  ListOrdered,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -68,14 +75,18 @@ export default function App() {
   //    - `activeClass`: Tailwind classes for the active tab state (color theming).
   // ============================================================================
   const tools = [
-    { id: "merge", label: "Merge", icon: FileStack, component: PDFMerge, activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
-    { id: "split", label: "Split", icon: Scissors, component: PDFSplit, activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
-    { id: "reorder", label: "Reorder", icon: MoveVertical, component: PDFReorder, activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
-    { id: "edit", label: "Edit PDF", icon: FilePen, component: PDFEditor, activeClass: "data-active:!bg-rose-500/10 data-active:!text-rose-500" },
-    { id: "fill", label: "Fill & Sign", icon: PenTool, component: PDFFill, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
-    { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
+    { id: "merge",       label: "Merge",        icon: FileStack,    component: PDFMerge,       activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
+    { id: "split",       label: "Split",        icon: Scissors,     component: PDFSplit,       activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
+    { id: "reorder",     label: "Reorder",      icon: MoveVertical, component: PDFReorder,     activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
+    { id: "edit",        label: "Edit PDF",     icon: FilePen,      component: PDFEditor,      activeClass: "data-active:!bg-rose-500/10 data-active:!text-rose-500" },
+    { id: "fill",        label: "Fill & Sign",  icon: PenTool,      component: PDFFill,        activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
+    { id: "image",       label: "Image to PDF", icon: ImageIcon,    component: ImageToPDF,     activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
+    { id: "compress",    label: "Compress",     icon: Minimize2,    component: PDFCompress,    activeClass: "data-active:!bg-indigo-500/10 data-active:!text-indigo-500" },
+    { id: "watermark",   label: "Watermark",    icon: Layers,       component: PDFWatermark,   activeClass: "data-active:!bg-violet-500/10 data-active:!text-violet-500" },
+    { id: "export",      label: "PDF to Images",icon: FileImage,    component: PDFToImages,    activeClass: "data-active:!bg-teal-500/10 data-active:!text-teal-500" },
+    { id: "pagenumbers", label: "Page Numbers", icon: ListOrdered,  component: PDFPageNumbers, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
     // { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
-    { id: "history", label: "History", icon: History, component: PDFHistory, activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
+    { id: "history",     label: "History",      icon: History,      component: PDFHistory,     activeClass: "data-active:!bg-slate-500/10 data-active:!text-slate-500" },
   ];
 
   const scrollToTop = () => {
@@ -126,7 +137,7 @@ export default function App() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">completely offline.</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
-              Edit, merge, split, reorder and sign PDFs with full privacy. Your files never leave your device.
+              Edit, merge, split, compress, watermark, reorder and sign PDFs with full privacy. Your files never leave your device.
             </p>
           </motion.div>
         </section>
@@ -149,16 +160,16 @@ export default function App() {
               <TabsList 
                 ref={scrollContainerRef}
                 onScroll={checkScroll}
-                className="!h-auto p-3 lg:p-4 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] shadow-xl flex-nowrap lg:flex-wrap justify-start lg:justify-center gap-2 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-w-full w-full lg:w-auto items-center scroll-smooth"
+                className="!h-auto p-3 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] shadow-xl flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-w-full w-full items-center scroll-smooth"
               >
                 {tools.map((tool) => (
                   <TabsTrigger 
                     key={tool.id} 
                     value={tool.id}
-                    className={`!h-14 lg:!h-12 rounded-full px-6 transition-all font-bold text-base shrink-0 data-active:shadow-lg ${tool.activeClass}`}
+                    className={`!h-12 rounded-full px-5 transition-all font-bold text-sm shrink-0 data-active:shadow-lg ${tool.activeClass}`}
                   >
-                    <tool.icon className="w-6 h-6 lg:w-4 lg:h-4 lg:mr-2" />
-                    <span className="hidden lg:inline">{tool.label}</span>
+                    <tool.icon className="w-4 h-4 mr-2" />
+                    <span>{tool.label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>

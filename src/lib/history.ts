@@ -4,7 +4,7 @@ export interface PDFHistoryItem {
   id: string;
   name: string;
   timestamp: number;
-  type: 'merge' | 'split' | 'reorder' | 'image-to-pdf' | 'edit';
+  type: 'merge' | 'split' | 'reorder' | 'image-to-pdf' | 'edit' | 'compress' | 'watermark' | 'page-numbers' | 'pdf-to-images';
   blob: Blob;
   size: number;
 }
