@@ -10,7 +10,9 @@ import { addToHistory } from '@/lib/history';
 import { NamingOptions, NamingMode } from './NamingOptions';
 import { formatBytes } from '@/lib/utils';
 
-export function PDFCompress() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFCompress({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<{ bytes: Uint8Array; originalSize: number; compressedSize: number } | null>(null);
@@ -24,6 +26,7 @@ export function PDFCompress() {
     try {
       await validatePDF(newFiles[0]);
       setFile(newFiles[0]);
+      onPreviewChange?.(newFiles[0]);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Invalid PDF file.';
       setError(message);
@@ -35,6 +38,7 @@ export function PDFCompress() {
     setFile(null);
     setResult(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const handleCompress = async () => {
@@ -45,6 +49,7 @@ export function PDFCompress() {
     try {
       const compressedBytes = await compressPDF(file);
       setResult({ bytes: compressedBytes, originalSize: file.size, compressedSize: compressedBytes.byteLength });
+      onPreviewChange?.(compressedBytes);
       toast.success('PDF optimized successfully!');
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Failed to compress PDF.';

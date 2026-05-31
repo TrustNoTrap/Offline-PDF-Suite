@@ -27,7 +27,9 @@ function hexToRgb(hex: string): [number, number, number] {
   return [r, g, b];
 }
 
-export function PDFWatermark() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFWatermark({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
@@ -48,6 +50,7 @@ export function PDFWatermark() {
     try {
       await validatePDF(newFiles[0]);
       setFile(newFiles[0]);
+      onPreviewChange?.(newFiles[0]);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Invalid PDF file.';
       setError(message);
@@ -59,6 +62,7 @@ export function PDFWatermark() {
     setFile(null);
     setResultBytes(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const handleApply = async () => {
@@ -76,6 +80,7 @@ export function PDFWatermark() {
       };
       const bytes = await watermarkPDF(file, options);
       setResultBytes(bytes);
+      onPreviewChange?.(bytes);
       toast.success('Watermark applied successfully!');
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Failed to apply watermark.';

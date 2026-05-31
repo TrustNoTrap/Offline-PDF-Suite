@@ -31,7 +31,9 @@ const FORMATS: { label: string; example: string; value: Format }[] = [
   { label: 'Page X of Y',  example: 'Page 1 of 5', value: 'page-number-of-total' },
 ];
 
-export function PDFPageNumbers() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFPageNumbers({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
@@ -52,6 +54,7 @@ export function PDFPageNumbers() {
     try {
       await validatePDF(newFiles[0]);
       setFile(newFiles[0]);
+      onPreviewChange?.(newFiles[0]);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Invalid PDF file.';
       setError(message);
@@ -63,6 +66,7 @@ export function PDFPageNumbers() {
     setFile(null);
     setResultBytes(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const handleApply = async () => {
@@ -74,6 +78,7 @@ export function PDFPageNumbers() {
       const options: PageNumberOptions = { position, format, startNumber, fontSize, margin };
       const bytes = await addPageNumbers(file, options);
       setResultBytes(bytes);
+      onPreviewChange?.(bytes);
       toast.success('Page numbers added successfully!');
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Failed to add page numbers.';

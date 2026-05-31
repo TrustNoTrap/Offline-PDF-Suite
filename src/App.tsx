@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { PDFMerge } from './components/PDFMerge';
@@ -18,6 +18,7 @@ import { PDFWatermark } from './components/PDFWatermark';
 import { PDFToImages } from './components/PDFToImages';
 import { PDFPageNumbers } from './components/PDFPageNumbers';
 import { ModeToggle } from './components/ModeToggle';
+import { PDFSidePreview } from './components/PDFSidePreview';
 import { 
   FileStack, 
   Scissors, 
@@ -41,11 +42,21 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+type PreviewFile = File | Uint8Array | null;
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("merge");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState<Record<string, PreviewFile>>({});
+
+  const makePreviewHandler = useCallback(
+    (toolId: string) => (file: PreviewFile) => {
+      setPreviewFiles((prev) => ({ ...prev, [toolId]: file }));
+    },
+    []
+  );
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {
@@ -143,7 +154,7 @@ export default function App() {
         </section>
 
         {/* Tools Interface */}
-        <section className="max-w-5xl mx-auto">
+        <section>
           <Tabs defaultValue="merge" onValueChange={setActiveTab} className="w-full">
             <div className="relative w-full max-w-full flex items-center justify-center mb-12">
               {canScrollLeft && (
@@ -186,21 +197,30 @@ export default function App() {
               )}
             </div>
 
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-black/5"
-            >
-              <AnimatePresence mode="wait">
-                {tools.map((tool) => (
-                  <TabsContent key={tool.id} value={tool.id} className="mt-0 focus-visible:outline-none">
-                    <tool.component />
-                  </TabsContent>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+            {/* Two-pane layout: tool on the left, live preview on the right */}
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+              {/* Tool panel */}
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="min-w-0 flex-1 bg-white dark:bg-white/5 border dark:border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-black/5"
+              >
+                <AnimatePresence mode="wait">
+                  {tools.map((tool) => (
+                    <TabsContent key={tool.id} value={tool.id} className="mt-0 focus-visible:outline-none">
+                      <tool.component onPreviewChange={makePreviewHandler(tool.id)} />
+                    </TabsContent>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Live preview panel — always visible */}
+              <div className="w-full xl:w-[400px] xl:shrink-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)]">
+                <PDFSidePreview file={previewFiles[activeTab] ?? null} />
+              </div>
+            </div>
           </Tabs>
         </section>
 

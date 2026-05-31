@@ -57,7 +57,9 @@ const COLORS = [
   { name: 'Green', value: '#008000' },
 ];
 
-export function PDFFill() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFFill({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
@@ -174,6 +176,7 @@ export function PDFFill() {
     if (files.length === 0) return;
     const selectedFile = files[0];
     setFile(selectedFile);
+    onPreviewChange?.(selectedFile);
     setAnnotations([]);
     setPast([]);
     setFuture([]);
@@ -273,6 +276,7 @@ export function PDFFill() {
       }));
 
       const resultBytes = await fillPDF(file, {}, processedAnnotations);
+      onPreviewChange?.(resultBytes);
       const fileName = generateFileName('both', 'filled', file.name);
       
       const blob = new Blob([resultBytes], { type: 'application/pdf' });
@@ -491,7 +495,7 @@ export function PDFFill() {
                 Save PDF
               </Button>
               
-              <Button variant="outline" size="icon" className="rounded-full" onClick={() => setFile(null)}>
+              <Button variant="outline" size="icon" className="rounded-full" onClick={() => { setFile(null); onPreviewChange?.(null); }}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>

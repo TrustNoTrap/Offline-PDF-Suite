@@ -10,9 +10,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NamingOptions, NamingMode } from './NamingOptions';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { PDFPreview } from './PDFPreview';
 
-export function PDFMerge() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFMerge({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   // ============================================================================
   // EXTENSIBILITY GUIDE: Standard Tool Component Structure
   // ============================================================================
@@ -36,7 +37,12 @@ export function PDFMerge() {
       for (const file of newFiles) {
         await validatePDF(file);
       }
-      setFiles((prev) => [...prev, ...newFiles]);
+      setFiles((prev) => {
+        const updated = [...prev, ...newFiles];
+        // Show first input file in side preview
+        if (updated.length > 0) onPreviewChange?.(updated[0]);
+        return updated;
+      });
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Invalid PDF file.";
       setError(message);
@@ -45,7 +51,11 @@ export function PDFMerge() {
   };
 
   const handleRemoveFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      onPreviewChange?.(updated.length > 0 ? updated[0] : null);
+      return updated;
+    });
     setPreviewBytes(null);
   };
 
@@ -56,6 +66,7 @@ export function PDFMerge() {
     try {
       const mergedBytes = await mergePDFs(files, compress);
       setPreviewBytes(mergedBytes);
+      onPreviewChange?.(mergedBytes);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Failed to generate preview.";
       setError(message);
@@ -163,16 +174,6 @@ export function PDFMerge() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {previewBytes && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pt-4"
-          >
-            <PDFPreview file={previewBytes} />
-          </motion.div>
-        )}
 
         <div className="flex flex-col sm:flex-row justify-end pt-4 gap-4">
           <Button 

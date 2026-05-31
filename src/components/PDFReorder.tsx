@@ -11,9 +11,10 @@ import { Reorder, motion, AnimatePresence } from 'motion/react';
 import { NamingOptions, NamingMode } from './NamingOptions';
 import { cn } from '@/lib/utils';
 import { generatePDFThumbnails } from '@/lib/pdf-thumbnails';
-import { PDFPreview } from './PDFPreview';
 
-export function PDFReorder() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFReorder({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [pageIndices, setPageIndices] = useState<number[]>([]);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
@@ -38,6 +39,7 @@ export function PDFReorder() {
     try {
       await validatePDF(file);
       setFiles([file]);
+      onPreviewChange?.(file);
       
       const bytes = await file.arrayBuffer();
       const pdf = await PDFDocument.load(bytes);
@@ -72,6 +74,7 @@ export function PDFReorder() {
     setHistoryIndex(-1);
     setPreviewBytes(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const commitHistory = () => {
@@ -112,6 +115,7 @@ export function PDFReorder() {
     try {
       const reorderedBytes = await reorderPDFPages(files[0], pageIndices);
       setPreviewBytes(reorderedBytes);
+      onPreviewChange?.(reorderedBytes);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : "Failed to generate preview.";
       setError(message);
@@ -296,16 +300,6 @@ export function PDFReorder() {
           </div>
         )}
 
-        {previewBytes && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pt-4"
-          >
-            <PDFPreview file={previewBytes} />
-          </motion.div>
-        )}
-        
         <div className="flex flex-col sm:flex-row justify-end pt-4 gap-4">
           <Button 
             variant="outline"

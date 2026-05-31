@@ -27,7 +27,9 @@ const SCALE_OPTIONS = [
   { label: '3×', value: 3 },
 ];
 
-export function PDFToImages() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFToImages({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [scale, setScale] = useState(1.5);
   const [format, setFormat] = useState<Format>('png');
@@ -43,6 +45,7 @@ export function PDFToImages() {
     try {
       await validatePDF(newFiles[0]);
       setFile(newFiles[0]);
+      onPreviewChange?.(newFiles[0]);
     } catch (err) {
       const message = err instanceof PDFError ? err.message : 'Invalid PDF file.';
       setError(message);
@@ -54,6 +57,7 @@ export function PDFToImages() {
     setFile(null);
     setRenderedPages(null);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   const handleExport = useCallback(async () => {

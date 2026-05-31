@@ -63,7 +63,9 @@ async function renderPageThumbnail(
 
 // ─── component ───────────────────────────────────────────────────────────────
 
-export function PDFEditor() {
+type PreviewFile = File | Uint8Array | null;
+
+export function PDFEditor({ onPreviewChange }: { onPreviewChange?: (file: PreviewFile) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [pages, setPages] = useState<InternalPage[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -139,6 +141,7 @@ export function PDFEditor() {
     try {
       await validatePDF(f);
       setFile(f);
+      onPreviewChange?.(f);
       setSelectedIds(new Set());
       setUndoStack([]);
       setRedoStack([]);
@@ -178,6 +181,7 @@ export function PDFEditor() {
     setUndoStack([]);
     setRedoStack([]);
     setError(null);
+    onPreviewChange?.(null);
   };
 
   // ── selection helpers ────────────────────────────────────────────────────────
@@ -320,6 +324,7 @@ export function PDFEditor() {
     setError(null);
     try {
       const resultBytes = await buildEditedPDF(file, pages);
+      onPreviewChange?.(resultBytes);
       const fileName = generateFileName(namingMode, prefix, `edited_${file.name.replace(/\.pdf$/i, '')}`);
       const blob = new Blob([resultBytes as unknown as BlobPart], { type: 'application/pdf' });
       await addToHistory({ name: fileName, type: 'edit', blob, size: blob.size });

@@ -35,7 +35,7 @@ import { Badge } from '@/components/ui/badge';
 
 const ITEMS_PER_PAGE = 5;
 
-export function PDFHistory() {
+export function PDFHistory(_props?: { onPreviewChange?: (file: File | Uint8Array | null) => void }) {
   const [history, setHistory] = useState<PDFHistoryItem[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
