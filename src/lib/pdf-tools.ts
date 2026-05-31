@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { createWorker } from 'tesseract.js';
 
@@ -426,6 +426,78 @@ export async function fillPDF(
   } catch (error: any) {
     if (error instanceof PDFError) throw error;
     throw new PDFError('Failed to fill the PDF document: ' + (error?.message || 'Unknown error'), 'FILL_FAILED');
+  }
+}
+
+export interface EditedPage {
+  /** Unique stable identifier used only by the UI */
+  id: string;
+  /** Where this page comes from */
+  sourceType: 'original' | 'inserted' | 'blank';
+  /** Index in the original/source PDF (used when sourceType !== 'blank') */
+  originalIndex: number;
+  /**
+   * The source file for 'inserted' pages.
+   * For 'original' pages this is the main document file (passed separately).
+   */
+  sourceFile?: File;
+  /** Clockwise rotation to add in degrees (0 | 90 | 180 | 270) */
+  rotation: number;
+  /** Width in points for blank pages (default: 612 = US Letter) */
+  blankWidth?: number;
+  /** Height in points for blank pages (default: 792 = US Letter) */
+  blankHeight?: number;
+}
+
+/**
+ * Builds a new PDF from an ordered list of page descriptors.
+ * Supports keeping/reordering original pages, inserting pages from other PDFs,
+ * inserting blank pages, and rotating any page.
+ */
+export async function buildEditedPDF(
+  originalFile: File,
+  pages: EditedPage[]
+): Promise<Uint8Array> {
+  try {
+    const newPdf = await PDFDocument.create();
+
+    // Cache loaded PDFs to avoid re-parsing the same file multiple times
+    const pdfCache = new Map<string, PDFDocument>();
+
+    const getDoc = async (file: File): Promise<PDFDocument> => {
+      const cacheKey = `${file.name}-${file.size}-${file.lastModified}`;
+      if (!pdfCache.has(cacheKey)) {
+        const bytes = await file.arrayBuffer();
+        pdfCache.set(cacheKey, await PDFDocument.load(bytes));
+      }
+      return pdfCache.get(cacheKey)!;
+    };
+
+    for (const page of pages) {
+      if (page.sourceType === 'blank') {
+        const w = page.blankWidth ?? 612;
+        const h = page.blankHeight ?? 792;
+        newPdf.addPage([w, h]);
+      } else {
+        const sourceFile =
+          page.sourceType === 'original' ? originalFile : page.sourceFile!;
+        const srcDoc = await getDoc(sourceFile);
+        const [copiedPage] = await newPdf.copyPages(srcDoc, [page.originalIndex]);
+        newPdf.addPage(copiedPage);
+      }
+
+      // Apply rotation to the page we just added
+      if (page.rotation !== 0) {
+        const addedPage = newPdf.getPage(newPdf.getPageCount() - 1);
+        const currentRotation = addedPage.getRotation().angle;
+        addedPage.setRotation(degrees((currentRotation + page.rotation) % 360));
+      }
+    }
+
+    return await newPdf.save();
+  } catch (error) {
+    if (error instanceof PDFError) throw error;
+    throw new PDFError('Failed to build the edited PDF.', 'EDIT_FAILED');
   }
 }
 

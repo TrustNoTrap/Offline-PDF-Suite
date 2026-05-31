@@ -16,6 +16,7 @@ import {
   MoveVertical,
   Image as ImageIcon,
   SearchCode,
+  FilePen,
   ChevronLeft,
   ChevronRight,
   HardDrive,
@@ -127,6 +128,7 @@ export function PDFHistory() {
       case 'reorder': return <MoveVertical className="w-6 h-6" />;
       case 'image-to-pdf': return <ImageIcon className="w-6 h-6" />;
       case 'ocr': return <SearchCode className="w-6 h-6" />;
+      case 'edit': return <FilePen className="w-6 h-6" />;
       default: return <FileText className="w-6 h-6" />;
     }
   };
@@ -138,6 +140,7 @@ export function PDFHistory() {
       case 'reorder': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
       case 'image-to-pdf': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'ocr': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'edit': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
       default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     }
   };

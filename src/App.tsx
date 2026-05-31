@@ -11,7 +11,7 @@ import { PDFSplit } from './components/PDFSplit';
 import { PDFReorder } from './components/PDFReorder';
 import { ImageToPDF } from './components/ImageToPDF';
 import { PDFFill } from './components/PDFFill';
-// import { PDFOCR } from './components/PDFOCR';
+import { PDFEditor } from './components/PDFEditor';
 import { PDFHistory } from './components/PDFHistory';
 import { ModeToggle } from './components/ModeToggle';
 import { 
@@ -27,6 +27,7 @@ import {
   Lock,
   Globe, 
   FileText,
+  FilePen,
   // Search,
   ChevronLeft,
   ChevronRight
@@ -70,6 +71,7 @@ export default function App() {
     { id: "merge", label: "Merge", icon: FileStack, component: PDFMerge, activeClass: "data-active:!bg-blue-500/10 data-active:!text-blue-500" },
     { id: "split", label: "Split", icon: Scissors, component: PDFSplit, activeClass: "data-active:!bg-purple-500/10 data-active:!text-purple-500" },
     { id: "reorder", label: "Reorder", icon: MoveVertical, component: PDFReorder, activeClass: "data-active:!bg-orange-500/10 data-active:!text-orange-500" },
+    { id: "edit", label: "Edit PDF", icon: FilePen, component: PDFEditor, activeClass: "data-active:!bg-rose-500/10 data-active:!text-rose-500" },
     { id: "fill", label: "Fill & Sign", icon: PenTool, component: PDFFill, activeClass: "data-active:!bg-emerald-500/10 data-active:!text-emerald-500" },
     { id: "image", label: "Image to PDF", icon: ImageIcon, component: ImageToPDF, activeClass: "data-active:!bg-sky-500/10 data-active:!text-sky-500" },
     // { id: "ocr", label: "OCR", icon: Search, component: PDFOCR, activeClass: "data-active:!bg-amber-500/10 data-active:!text-amber-500" },
@@ -109,7 +111,7 @@ export default function App() {
 
       <main className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
-        <section className="max-w-4xl mx-auto text-center mb-20">
+        <section className="max-w-4xl mx-auto text-center mb-14">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -119,12 +121,12 @@ export default function App() {
               <Zap className="w-4 h-4" />
               <span>100% Client-Side Processing</span>
             </div>
-            <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1]">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-[1.1]">
               Professional PDF tools, <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">completely offline.</span>
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
-              Merge, split, and reorder PDF pages with military-grade privacy. Your files never leave your device.
+            <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
+              Edit, merge, split, reorder and sign PDFs with full privacy. Your files never leave your device.
             </p>
           </motion.div>
         </section>
@@ -197,7 +199,7 @@ export default function App() {
             <h2 className="text-4xl font-black tracking-tight mb-4">Why use PDFSuite?</h2>
             <p className="text-muted-foreground text-lg font-medium">The most secure way to handle your documents.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="p-8 rounded-[2rem] bg-white dark:bg-white/5 border dark:border-white/10 hover:shadow-xl transition-all group">
               <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Lock className="w-7 h-7" />
@@ -223,6 +225,15 @@ export default function App() {
               <h3 className="text-2xl font-bold mb-4">Works Offline</h3>
               <p className="text-muted-foreground leading-relaxed font-medium">
                 Once loaded, the app works without an internet connection. Perfect for secure environments.
+              </p>
+            </div>
+            <div className="p-8 rounded-[2rem] bg-white dark:bg-white/5 border dark:border-white/10 hover:shadow-xl transition-all group">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <FilePen className="w-7 h-7" />
+              </div>
+              <h3 className="text-2xl font-bold mb-4">Full PDF Editor</h3>
+              <p className="text-muted-foreground leading-relaxed font-medium">
+                Delete, insert, rotate, duplicate and reorder pages — plus fill forms and add signatures, all in one suite.
               </p>
             </div>
           </div>
